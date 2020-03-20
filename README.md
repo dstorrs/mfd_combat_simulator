@@ -45,20 +45,24 @@ hits.
 
 Combat works as follows:
 
- Step 1: Choose matchups.  See below for details.
+ Step 1: Choose matchups.  See the 'Matchups and Generating/Blocking Hits' section below
+ for details.
 
  Step 2: For each matchup, the attacker rolls to generate hits and the defender rolls to
- block hits.  Each unblocked hit costs the defender 1 HP.  Fighters die at 0 HP.  By
- default they start at 2 HP.  (See below.)  NOTE: Fighters are not removed from combat
- until the end of the round, so even if they are killed they will get one last chance to
- swing at their foe, although that's probably not the person who killed them. 
+ block hits.  See below for how hits are generated and blocked. Each unblocked hit costs
+ the defender 1 HP.  Fighters die at 0 HP.  By default they start at 2 HP.
+ 
+    NOTE: Fighters are not removed from combat until the end of the round, so even if they
+    are killed they will get one last chance to swing at their foe, although that's
+    probably not the person who killed them.
 
  Step 3: Display the results of the fight.
  
  Step 4: If the defender has been reduced to 0 or fewer hitpoints, everyone who is linked
  to them (cf the LinkedTo field) has their hit points set to 0.  (Unless they are already
  below 0, in which case their HP is not changed.)  If anyone is eliminated this way,
- display a message to that effect.
+ display a message to that effect.  This is used for things like 'If Naruto dies, so do
+ Clone1, Clone2, Clone3'.
 
  Step 5: Remove dead fighters.  If one side has been eliminated, announce that and stop.
 
@@ -74,11 +78,18 @@ Each round, heroes and villains are matched up against one another as follows:
       if the chosen opponent has one or more bodyguards, choose a random bodyguard instead
       else, use the chosen opponent
 
-Everyone will attack each round. The matchups are random so it's possible that some people will get attacked multiple times and some people won't be attacked at all.  Also, it's usually not the case that two people swing at each other, so a defender is generally not going to hit back at their attacker.
+Everyone will attack each round. The matchups are random so it's possible that some people will get attacked multiple times and some people won't be attacked at all.  Also, it's usually not the case that two people will end up choosing to swing at each other, so a defender is generally not going to hit back at their attacker.
 
-Once matchups are assigned, the attacker rolls (Dice) percentile dice; any roll that is
-<= ToHit generates a potential hit.  The defender then rolls (Dice) percentile dice; any
-roll that is <= ToDefend will block one incoming hit.  As mentioned above, (potential hits) - (blocked hits) is the number of HP inflicted on the defender for that round.
+Once matchups are assigned, combat goes:
+
+  attacker rolls (Dice) percentile dice. each die that is <= ToHit generates 1 potential hit
+  defender rolls (Dice) percentile dice. each die that is <= ToDefend blocks 1 hit
+  defender loses (potential hits) - (blocked hits) HP
+  
+ToHit    = (0.3 + BonusToHit    + any bonuses from allies)
+ToDefend = (0.3 + BonusToDefend + any bonuses from allies)
+
+See 'The Heroes.csv and Villains.csv Spec' section below for details on how bonuses from allies work.
 
 ## The Heroes.csv and Villains.csv Spec
 
@@ -118,24 +129,24 @@ BodyguardFor      -- the name of a person that this combatant will die to defend
 
 ## Example CSV File
 
-  Given this file:
+  This file represents a flying dragon and three ninja mounted on him.
 
     Name,     XP,     BonusXP, Wounds, BonusHP, BonusToHit, BonusToDefend, BuffNextNumAllies, BuffAlliesOffense, BuffAlliesDefense, LinkedTo, BodyguardFor
-    Alice,    2000,   100,       0,      0,       0.1,        0,             2,                 0.2,               0,                         , 
-    Bill,     1000,   10,        0,      1,       0.2,        0,             1,                 0.1,               0.7,               Alice   , Alice
-    Charlie,  500,    77,        1,      0,       0,          0,             3,                 0.05,              0,                 Alice   , 
-    Denise,   1500,   0,         0,      0,       0,          0.2,           1,                 0.13,              0,                 Alice   , 
+    Dragon,  2000,   100,       0,      0,       0.1,        0,             2,                 0.2,               0,                         , 
+    Rider1,  1000,   10,        0,      1,       0.2,        0,             1,                 0.1,               0.7,               Dragon   , Dragon
+    Rider2,  500,    77,        1,      0,       0,          0,             3,                 0.05,              0,                 Dragon   , 
+    Rider3,  1500,   0,         0,      0,       0,          0.2,           1,                 0.13,              0,                 Dragon   , 
 
   You'll get the following:
   
-    Alice:	HP(2), ToHit(40%), ToDefend(30%), Total XP (2100), Dice(3), Bodyguarding <no one>, Linked to <no one>
-    Bill:	HP(3), ToHit(70%), ToDefend(30%), Total XP (1010), Dice(2), Bodyguarding Alice,    Linked to Alice
-    Charlie:	HP(1), ToHit(60%), ToDefend(90%), Total XP (577),  Dice(1), Bodyguarding <no one>, Linked to Alice
-    Denise:	HP(2), ToHit(35%), ToDefend(50%), Total XP (1500), Dice(2), Bodyguarding <no one>, Linked to Alice
+    Dragon:	HP(2), ToHit(40%), ToDefend(30%), Total XP (2100), Dice(3), Bodyguarding <no one>, Linked to <no one>
+    Rider1:	HP(3), ToHit(70%), ToDefend(30%), Total XP (1010), Dice(2), Bodyguarding Dragon,    Linked to Dragon
+    Rider2:	HP(1), ToHit(60%), ToDefend(90%), Total XP (577),  Dice(1), Bodyguarding <no one>, Linked to Dragon
+    Rider3:	HP(2), ToHit(35%), ToDefend(50%), Total XP (1500), Dice(2), Bodyguarding <no one>, Linked to Dragon
 
-  If Alice dies, so do Bill, Charlie, and Denise.
+  If Dragon dies, so do Rider1, Rider2, and Rider3.  (Because if the Dragon dies the others fall to their deaths.)
   
-  Bill will throw himself in front of any attack against Alice.  Alice cannot die until Bill dies.
+  Rider1 will throw himself in front of any attack against Dragon.  Dragon cannot die until Rider1 dies.
 
-  Note that Denise's BuffNextNumAllies is larger than the number of combatants remaining. This is not an issue.
+  Note that Rider3's BuffNextNumAllies is larger than the number of combatants remaining. This is not an issue.
   
