@@ -1,4 +1,9 @@
 Name,     XP,     BonusXP, Wounds, BonusHP, BonusToHit, BonusToDefend, AOE,               BuffNextNumAllies, BuffAlliesOffense, BuffAlliesDefense, LinkedTo, BodyguardFor
-Ami,      13993,  0,       0,      0,       0.1,        0,             2,                 2,                 0.2,               0                ,         ,
-Kei,      5785,   0,       0,      0,       0.1,        0,             0,                 2,                 0.2,               0                ,         ,
-Prime,    17854,  0,       0,      0,       0.1,        0,             0,                 2,                 0.2,               0                ,         ,
+Ami,      13993,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,         ,
+Kei,      5785,   0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,         ,
+Prime,    17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,         ,
+Naruto0,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,     Prime    , Prime
+Naruto1,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,     Prime    , Prime
+Naruto2,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,     Prime    , Prime
+Naruto3,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,     Prime    , Prime
+Naruto4,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,     Prime    , Prime

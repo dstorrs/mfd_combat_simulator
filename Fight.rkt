@@ -1,5 +1,45 @@
 #lang racket
 
+;----------------------------------------------------------------------
+;  When running in DrRacket, modify the values in this section as
+;  desired.  When running on the command line interface (CLI) they can
+;  be controlled with arguments.
+
+; How many rounds to fight? +inf.0 means until one side dies.
+;   cmdline:   -m or --max-rounds
+(define max-rounds        (make-parameter +inf.0))
+
+; Where is the Heroes.csv file?
+;   cmdline: --heroes
+;   NB:  'same (note the apostrophe) means "the directory this Fight.rkt file is in"
+(define heroes-filepath   (make-parameter (build-path 'same "Heroes.csv")))
+
+; Where is the Villains.csv file?
+;   cmdline: --villains
+(define villains-filepath (make-parameter (build-path 'same "Villains.csv")))
+
+; The following are not available as CLI arguments but can be manually changed
+(define DEFAULT-AOE       1)    ; default # of people each combatant hits each turn
+(define DEFAULT-HP        2)    ; default points of damage a combatant can take. die at 0
+(define DEFAULT-TO-HIT    0.3)  ; 30% chance for each die to cause a point of damage
+(define DEFAULT-TO-DEFEND 0.3)  ; 30% chance for each die to deflect a point of damage
+
+
+;   These are here for reference so you can see what the original
+;   values were if you modify this code in DrRacket.
+;
+;; (define max-rounds        (make-parameter +inf.0))
+;; (define heroes-filepath   (make-parameter (build-path 'same "Heroes.csv")))
+;; (define villains-filepath (make-parameter (build-path 'same "Villains.csv")))
+;; (define csv-column-names  (make-parameter ""))
+;; (define DEFAULT-AOE       1)
+;; (define DEFAULT-HP        2)
+;; (define DEFAULT-TO-HIT    0.3)
+;; (define DEFAULT-TO-DEFEND 0.3)
+
+;----------------------------------------------------------------------
+
+;  You should not modify anything below here
 
 (require handy/hash
          handy/utils
@@ -9,12 +49,8 @@
          struct-plus-plus
          )
 
+(define csv-column-names  (make-parameter ""))
 (define-logger fight)
-
-(define DEFAULT-AOE       1)
-(define DEFAULT-HP        2)
-(define DEFAULT-TO-HIT    0.3)
-(define DEFAULT-TO-DEFEND 0.3)
 
 ;;----------------------------------------------------------------------
 
@@ -23,13 +59,13 @@
   (if (null? heroes)
       (displayln " <no survivors>")
       (for ([hero heroes])
-        (displayln (combatant/convert->string hero))))
+        (displayln (combatant/convert->report-string hero))))
 
   (displayln "\n\nVillains:")
   (if (null? villains)
       (displayln " <no survivors>")
       (for ([villain villains])
-        (displayln (combatant/convert->string villain)))))
+        (displayln (combatant/convert->report-string villain)))))
 
 ;;----------------------------------------------------------------------
 
@@ -92,30 +128,63 @@
                                         [_  (+ (to-num ToDefend) (to-num BonusToDefend))]))
                     (min 0.90 ; ToDefend is always 0% <= x <= 90%
                          (max 0 to-defend))])
-           #:convert-for (string
+           #:convert-for (stats-dump
+                          (#:post
+                           (λ (h)
+                             (match-define (hash-table
+                                            ('Name              Name )
+                                            ('XP                XP )
+                                            ('BonusXP           BonusXP )
+                                            ('Wounds            Wounds )
+                                            ('BonusHP           BonusHP )
+                                            ('BonusToHit        BonusToHit )
+                                            ('BonusToDefend     BonusToDefend )
+                                            ('AOE               AOE )
+                                            ('BuffNextNumAllies BuffNextNumAllies )
+                                            ('BuffAlliesOffense BuffAlliesOffense )
+                                            ('BuffAlliesDefense BuffAlliesDefense )
+                                            ('LinkedTo          LinkedTo )
+                                            ('BodyguardFor      BodyguardFor ))
+                               h)
+                             (string-join (map ~a (list Name
+                                                        XP
+                                                        BonusXP
+                                                        Wounds
+                                                        BonusHP
+                                                        BonusToHit
+                                                        BonusToDefend
+                                                        AOE
+                                                        BuffNextNumAllies
+                                                        BuffAlliesOffense
+                                                        BuffAlliesDefense
+                                                        LinkedTo
+                                                        BodyguardFor
+                                                        ))
+                                          ","))))
+           #:convert-for (report-string
                           (#:post (λ (h)
                                     (match-define (hash-table ('Name name)
                                                               ('HP hp)
                                                               ('EffectiveXP total-xp)
                                                               ('ToHit to-hit)
                                                               ('ToDefend to-defend)
+                                                              ('AOE aoe)
                                                               ('Dice dice)
                                                               ('BodyguardFor bodyguard-for)
                                                               ('LinkedTo linked-to)
                                                               )
                                       h)
-                                    (format "~a:\tHP(~a), ToHit(~a%), ToDefend(~a%), Total XP (~a), Dice(~a), Bodyguarding ~a, Linked to ~a"
+                                    (format "~a:\tHP(~a), ToHit(~a%), ToDefend(~a%), AOE (~a), Total XP (~a), Dice(~a), Bodyguarding ~a, Linked to ~a"
                                             name hp
                                             (real->decimal-string (* 100 to-hit) 0)
                                             (real->decimal-string (* 100 to-defend) 0)
-                                            total-xp dice
+                                            aoe total-xp dice
                                             (if (empty-string? bodyguard-for)
                                                 "<no one>"
                                                 bodyguard-for)
                                             (if (empty-string? linked-to)
                                                 "<no one>"
-                                                linked-to)
-                                            )))))
+                                                linked-to))))))
           #:transparent
           #:mutable
           )
@@ -260,13 +329,13 @@
 
   (define sides (shuffle (list heroes villains)))
   (log-fight-debug "sides are: ~v" sides)
-  
+
   (define h2v (apply generate-matchups sides))
   (define v2h (apply generate-matchups (reverse sides)))
 
   (log-fight-debug "h2v is: ~v" h2v)
   (log-fight-debug "v2h is: ~v" v2h)
-  
+
   ; heroes attack villains first, then vice versa.  All attacks are simultaneous, no one
   ; is marked dead until the round is over WITH THE EXCEPTION that a bodyguard doesn't get
   ; to keep bodyguarding after taking fatal damage, although they will get their licks in
@@ -274,7 +343,7 @@
   (for ([hsh (list h2v v2h)])
     (for ([(attacker defenders) (in-hash hsh)])
       (log-fight-debug " attacker ~v\n defenders ~v" attacker defenders)
-      
+
       (when (> (length defenders) 1)
         (displayln (format "\t Note: ~a has AoE attacks and is potentially hitting ~a people!"
                            (combatant-Name attacker)
@@ -314,13 +383,40 @@
                (displayln (format "~a failed to hurt ~a..." attacker-name defender-name))])))))
 
 ;;----------------------------------------------------------------------
+
+(define/contract (write-combatant-data heroes villains)
+  (-> (listof combatant?) (listof combatant?) any)
+
+  (define heroes-final-path (path->string     (build-path 'same "Heroes-final.csv")))
+  (define villains-final-path (path->string     (build-path 'same "Villains-final.csv")))
+  (displayln (format "\n\nDumping the final state of all combatants to ~a and ~a"
+                     heroes-final-path
+                     villains-final-path))
+  (displayln (format  "heroes is: ~v" heroes))
+  (displayln (format  "villains is: ~v" villains))
+  (with-output-to-file
+    #:exists 'replace
+    heroes-final-path
+    (thunk
+     (displayln (string-join (csv-column-names) ","))
+     (for ([x heroes])
+       (displayln (combatant/convert->stats-dump x)))))
+
+  (with-output-to-file
+    #:exists 'replace
+    villains-final-path
+    (thunk
+     (displayln (string-join (csv-column-names) ","))
+     (for ([x villains]) (displayln (combatant/convert->stats-dump x))))))
+
+;;----------------------------------------------------------------------
 ;;----------------------------------------------------------------------
 ;;----------------------------------------------------------------------
 ; program start
 
 (define (run)
-  (define heroes-file   (csv->list  (open-input-file (build-path 'same "Heroes.csv"))))
-  (define villains-file (csv->list  (open-input-file (build-path 'same "Villains.csv"))))
+  (define heroes-file   (csv->list  (open-input-file (heroes-filepath))))
+  (define villains-file (csv->list  (open-input-file (villains-filepath))))
 
   (when (< (length heroes-file) 2)
     (error "Heroes.csv must have at least two rows: headers and one combatant"))
@@ -328,24 +424,25 @@
     (error "Villains.csv must have at least two rows: headers and one combatant"))
 
   (log-fight-debug "Got the files loaded")
-  
+
   (define headers  (map string-trim (car heroes-file)))
   (when (not (equal? headers (map string-trim (car villains-file))))
     (error "Headers in Heroes.csv and Villains.csv must match"))
 
+  (csv-column-names headers)
   (log-fight-debug "headers matched")
-  
+
   ; turn the CSV records into hashes and then into structs
-  (define heroes   (initialize (hashify heroes-file headers)))
+  (define heroes   (initialize (hashify heroes-file   headers)))
   (define villains (initialize (hashify villains-file headers)))
 
   (log-fight-debug "initialized heroes and villains")
-  
+
   (validate-names heroes)
   (validate-names villains)
 
   (log-fight-debug "validated heroes and villains")
-  
+
   (displayln "At start of battle, the sides are:\n")
   (show-sides heroes villains)
 
@@ -356,16 +453,18 @@
     (log-fight-debug "loop for round ~a" round#)
 
     (cond [(or (null? heroes)
-               (null? villains))
+               (null? villains)
+               (> round# (max-rounds)))
            (displayln "\n\n Battle ends!  Final result:")
-           (show-sides heroes villains)]
+           (show-sides heroes villains)
+           (write-combatant-data heroes villains)]
           [else
            (displayln (format "\n\tRound ~a, fight!" round#))
 
            (run-combat heroes villains)
-           
+
            (log-fight-debug "after run-combat for round ~a" round#)
-           
+
            ; After every round, combatants are more tired, lower on chakra, etc, and
            ; simultaneously get more desperate for a win.  To represent that, we reduce
            ; their ToDefend by 0.1 (i.e. 10%).  This prevents any possibility of stalemate
@@ -380,9 +479,16 @@
   #:exists 'replace
   #:mode   'text
   (thunk
+
+   (command-line
+    #:program "Fight.rkt"
+    #:once-each
+    [("-m" "--max-rounds") num-rounds "Stop after N rounds even if the fight is not done.  It will output the current state of the combatants to Heroes-final.csv and Villains-final.csv.  You can then modify these files (e.g. add reinforcements) and run it again.  Be sure to use the --heroes and --villains switches if you do"
+     (max-rounds (string->number num-rounds))]
+    [("--heroes") hf "A relative path to a combatants CSV file. Default: ./Heroes.csv" (heroes-filepath (build-path 'same hf))]
+    [("--villains") vf "A relative path to a combatants CSV file. Default: ./Villains.csv" (villains-filepath (build-path 'same vf))]
+    )
    (run)
    (displayln "\n\n\t NOTE: Output was saved to './BattleLog.txt'")))
 
 (displayln (file->string logfilepath))
-
-(displayln "done")

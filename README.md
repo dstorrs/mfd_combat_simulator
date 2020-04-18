@@ -1,7 +1,6 @@
 # mfd-combat-simulator
 
-Simulator for large-scale combat in Marked for Death.  Currently, this contains Fight.rkt,
-Heroes.csv, and Villains.csv.
+Simulator for large-scale combat in Marked for Death.
 
 ## Installing
 
@@ -28,9 +27,20 @@ From DrRacket:
 A battle log will be printed to the terminal and saved to BattleLog.txt in the same
 directory as this README.md file.
 
+Additionally, the final state of all combatants will be saved to Heroes-final.csv and Villains-final.csv in the same directory as this README.md file.
+
+
+## Command-line Switches
+
+-m, --max-rounds  : Stop after N rounds even if there are still people alive on both sides
+--heroes          : A relative path to a combatants CSV file. Default: ./Heroes.csv" 
+--villains        : A relative path to a combatants CSV file. Default: ./Villains.csv"
+
+You can simulate reinforcements or mid-combat healing by setting it to run for a finite number of rounds, modifying the Heroes-final.csv and Villains-final.csv files, and running it again with the command line arguments "--heroes Heroes-final.csv --villains Villains-final.csv".  In the limiting case, run it for 1 round each time and revise the files as needed.
+
 ## Fighters
 
-Fighters are defined in the Heroes.csv and Villains.csv files. (See below for details.)
+Fighters are defined in (by default) the "./Heroes.csv" and "./Villains.csv" files. See below for details.
 
 Each fighter has a variety of stats that work together to generate three numbers:
 
@@ -45,12 +55,13 @@ hits.
 
 Combat works as follows:
 
- Step 1: Choose matchups.  See the 'Matchups and Generating/Blocking Hits' section below
- for details.
+ Step 1: Choose matchups.  See the 'Choosing Matchups' section below for details.
 
  Step 2: For each matchup, the attacker rolls to generate hits and the defender rolls to
  block hits.  See below for how hits are generated and blocked. Each unblocked hit costs
  the defender 1 HP.  Fighters die at 0 HP.  By default they start at 2 HP.
+
+    See the 'Generating/Blocking Hits' section below for details.
  
     NOTE: Fighters are not removed from combat until the end of the round, so even if they
     are killed they will get one last chance to swing at their foe, although that's
@@ -64,21 +75,31 @@ Combat works as follows:
  display a message to that effect.  This is used for things like 'If Naruto dies, so do
  Clone1, Clone2, Clone3'.
 
- Step 5: Remove dead fighters.  If one side has been eliminated, announce that and stop.
+ Step 5: Remove dead fighters.  If one side has been eliminated,
+ announce that and stop.  If we have reached the maximum allowed
+ number of rounds, announce that and stop.
 
+    NOTE: When we stop, the full stats of all combatants will be
+    written to the "./Heroes-final.csv" and "./Villains-final.csv"
+    files.  In order to simulate, e.g., adding combatants or healing
+    people mid-fight, run the combat for N rounds, modify the
+    *-final.csv files, and run it again using those as your inputs.
+    
  Step 6: Goto Step 1
 
 
-## Matchups and Generating/Blocking Hits
+## Choosing Matchups 
 
 Each round, heroes and villains are matched up against one another as follows:
 
   for each fighter
-    choose a random opponent
-      if the chosen opponent has one or more bodyguards, choose a random bodyguard instead
-      else, use the chosen opponent
+    choose N random opponents, where N is the value of the fighter's AOE stat
+      if a chosen opponent has one or more bodyguards, choose a random bodyguard instead
+      else, add the chosen opponent to the list of people the fighter will attack
 
-Everyone will attack each round. The matchups are random so it's possible that some people will get attacked multiple times and some people won't be attacked at all.  Also, it's usually not the case that two people will end up choosing to swing at each other, so a defender is generally not going to hit back at their attacker.
+Everyone will make at least one attack each round. The matchups are random so it's possible that some people will get attacked multiple times and some people won't be attacked at all.  Also, it's usually not the case that two people will end up choosing to swing at each other, so a defender is generally not going to hit back at their attacker.
+
+## Generating/Blocking Hits
 
 Once matchups are assigned, combat goes:
 
@@ -109,9 +130,9 @@ XP                -- The combatant's number of XP.  This determines how many dic
 
 BonusXP           -- A number of XP to fudge the ninja's power by.  Can be positive or negative.  This is here so that you can leave the actual XP number undisturbed but experiment with tweaks to represent factors that aren't well handled otherwise.
 
-Wounds            -- number of wounds a ninja starts with.  This will normally be 0.  It can be used to simulate ninja who start the battle injured, or to simulate Shadow Clones / Summoned creatures, who pop as soon as they take any damage and should therefore start with only 1 hit point.
+Wounds            -- Number of wounds a ninja starts with.  This will normally be 0.  It can be used to simulate ninja who start the battle injured, or to simulate Shadow Clones / Summoned creatures, who pop as soon as they take any damage and should therefore start with only 1 hit point.
 
-BonusHP           -- combatants start with HP = 2 + BonusHP - Wounds.  They lose one when they take a wound in combat. They die when their HP hits 0. 
+BonusHP           -- Combatants start with HP = 2 + BonusHP - Wounds.  They lose one when they take a wound in combat. They die when their HP hits 0. 
 
 BonusToHit        -- A decimal number 0 < x < 1.  A value of 0.1 means a +10% bonus to the fighter's chance of causing damage each round.  0.23 means +23%, 0.71 = +71% etc.  No matter what bonus is specified, ToHit is capped to 5% <= x <= 99%
 
@@ -125,30 +146,32 @@ BuffAlliesOffense -- A decimal number 0 <= x < 1, representing the percentage by
 
 BuffAlliesDefense -- Same as BuffAlliesOffense except it increases their ToDefend instead of their ToHit.
 
-LinkedTo          -- each combatant can be linked to either 0 or 1 other combatant. A combatant dies if the person they are linked to dies.
+LinkedTo          -- Each combatant can be linked to either 0 or 1 other combatant. A combatant dies if the person they are linked to dies.
 
-BodyguardFor      -- the name of a person that this combatant will die to defend. Attacks against that person will be diverted to this person instead.
+BodyguardFor      -- The name of a person that this combatant will die to defend. Attacks against that person will be diverted to this person instead.
 
 ## Example CSV File
 
   This file represents a flying dragon and three ninja mounted on him.
 
-    Name,     XP,     BonusXP, Wounds, BonusHP, BonusToHit, BonusToDefend, BuffNextNumAllies, BuffAlliesOffense, BuffAlliesDefense, LinkedTo, BodyguardFor
-    Dragon,  2000,   100,       0,      0,       0.1,        0,             2,                 0.2,               0,                         , 
-    Rider1,  1000,   10,        0,      1,       0.2,        0,             1,                 0.1,               0.7,               Dragon   , Dragon
-    Rider2,  500,    77,        1,      0,       0,          0,             3,                 0.05,              0,                 Dragon   , 
-    Rider3,  1500,   0,         0,      0,       0,          0.2,           1,                 0.13,              0,                 Dragon   , 
+    Name,     XP,     BonusXP, Wounds, BonusHP, BonusToHit, BonusToDefend, AOE, BuffNextNumAllies, BuffAlliesOffense, BuffAlliesDefense, LinkedTo, BodyguardFor
+    Dragon,  2000,   100,       0,      0,       0.1,        0,             3,  2,                 0.2,               0,                         , 
+    Rider1,  1000,   10,        0,      1,       0.2,        0,             1,  1,                 0.1,               0.7,               Dragon   , Dragon
+    Rider2,  500,    77,        1,      0,       0,          0,             1,  3,                 0.05,              0,                 Dragon   , 
+    Rider3,  1500,   0,         0,      0,       0,          0.2,           1,  1,                 0.13,              0,                 Dragon   , 
 
   You'll get the following:
   
-    Dragon:	HP(2), ToHit(40%), ToDefend(30%), Total XP (2100), Dice(3), Bodyguarding <no one>, Linked to <no one>
-    Rider1:	HP(3), ToHit(70%), ToDefend(30%), Total XP (1010), Dice(2), Bodyguarding Dragon,    Linked to Dragon
-    Rider2:	HP(1), ToHit(60%), ToDefend(90%), Total XP (577),  Dice(1), Bodyguarding <no one>, Linked to Dragon
-    Rider3:	HP(2), ToHit(35%), ToDefend(50%), Total XP (1500), Dice(2), Bodyguarding <no one>, Linked to Dragon
+    Dragon:	HP(2), ToHit(40%), ToDefend(30%), AOE (3), Total XP (2100), Dice(3), Bodyguarding <no one>, Linked to <no one>
+    Rider1:	HP(3), ToHit(70%), ToDefend(30%), AOE (1), Total XP (1010), Dice(2), Bodyguarding Dragon,    Linked to Dragon
+    Rider2:	HP(1), ToHit(60%), ToDefend(90%), AOE (1), Total XP (577),  Dice(1), Bodyguarding <no one>, Linked to Dragon
+    Rider3:	HP(2), ToHit(35%), ToDefend(50%), AOE (1), Total XP (1500), Dice(2), Bodyguarding <no one>, Linked to Dragon
 
+  Dragon will attack 3 enemies each round.
+  
   If Dragon dies, so do Rider1, Rider2, and Rider3.  (Because if the Dragon dies the others fall to their deaths.)
   
   Rider1 will throw himself in front of any attack against Dragon.  Dragon cannot die until Rider1 dies.
 
   Note that Rider3's BuffNextNumAllies is larger than the number of combatants remaining. This is not an issue.
-  
+
