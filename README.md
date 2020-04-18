@@ -98,7 +98,7 @@ the CSV files follows:
 
 ### All Headers
 
-Name,XP,BonusXP,Wounds,BonusHP,BonusToHit,BonusToDefend,BuffNextNumAllies,BuffAlliesOffense,BuffAlliesDefense,LinkedTo,BodyguardFor
+Name,XP,BonusXP,Wounds,BonusHP,BonusToHit,BonusToDefend,AOE,BuffNextNumAllies,BuffAlliesOffense,BuffAlliesDefense,LinkedTo,BodyguardFor
 
 
 ### Headers Explained
@@ -116,6 +116,8 @@ BonusHP           -- combatants start with HP = 2 + BonusHP - Wounds.  They lose
 BonusToHit        -- A decimal number 0 < x < 1.  A value of 0.1 means a +10% bonus to the fighter's chance of causing damage each round.  0.23 means +23%, 0.71 = +71% etc.  No matter what bonus is specified, ToHit is capped to 5% <= x <= 99%
 
 BonusToDefend     -- A decimal number 0 < x < 1.  A value of 0.1 (0.15, etc) means a +10% (+15%, etc) bonus to the fighter's chance of avoiding being hit each round. No matter what bonus is specified, ToDefend is capped to 0% <= x <= 90%
+
+AOE               -- An integer.  This is the number of people that the combatant will attack each round.  Used to simulate AOE attacks or multiple attacks.  If <1 it will be set to 1.
 
 BuffNextNumAllies -- Number of allies below themselves in the list to apply their BuffAlliesOffense and BuffAlliesDefense to.  It's okay if this number is larger than the number of combatants left in the file.
 
