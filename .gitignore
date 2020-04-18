@@ -49,3 +49,5 @@ test.rkt
 compiled/
 node_modules/
 BattleLog.txt
+Heroes-final.csv
+Villains-final.csv
