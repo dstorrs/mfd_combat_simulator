@@ -3,7 +3,8 @@
 ;----------------------------------------------------------------------
 ;  When running in DrRacket, modify the values in this section as
 ;  desired.  When running on the command line interface (CLI) they can
-;  be controlled with arguments.
+;  be controlled with arguments.  There's a commented-out copy below
+;  so that you can reference the original values.
 
 ; How many rounds to fight? +inf.0 means until one side dies.
 ;   cmdline:   -m or --max-rounds
