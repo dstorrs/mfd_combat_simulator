@@ -263,7 +263,7 @@
   ; Return a hash where the keys are `combatant` structs and the values are a listof
   ; `combatant` structs signifying which combatants will take a bullet for which
   ;
-  ;(hash 'Alice (list Bob Charlie))  ; Bob and Charlie are bodyguarding Alice
+  ;(hash Alice (list Bob Charlie))  ; Bob and Charlie are bodyguarding Alice
 
   (for/hash ([fighter fighters])
     (define name (combatant-Name fighter))
