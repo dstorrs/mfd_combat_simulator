@@ -48,7 +48,7 @@ Each fighter has a variety of stats that work together to generate three numbers
     - ToHit     : The % chance of each die succeeding when attacking
     - ToDefend  : The % chance of each die succeeding when blocking
 
-If a fighters has (e.g.) 6 dice then they generate at most 6 hits and can block at most 6
+If a fighter has (e.g.) 6 dice then they generate at most 6 hits and can block at most 6
 hits.
 
 ## Combat Explained
@@ -134,15 +134,15 @@ Wounds            -- Number of wounds a ninja starts with.  This will normally b
 
 BonusHP           -- Combatants start with HP = 2 + BonusHP - Wounds.  They lose one when they take a wound in combat. They die when their HP hits 0. 
 
-BonusToHit        -- A decimal number 0 < x < 1.  A value of 0.1 means a +10% bonus to the fighter's chance of causing damage each round.  0.23 means +23%, 0.71 = +71% etc.  No matter what bonus is specified, ToHit is capped to 5% <= x <= 99%
+BonusToHit        -- A decimal number.  A value of 0.1 means a +10% bonus to the fighter's chance of causing damage each round.  0.23 means +23%, 0.71 = +71% etc.  The final ToHit value is (DEFAULT-TO-HIT + BonusToHit). No matter what, final ToHit is capped to 5% <= x <= 99%
 
-BonusToDefend     -- A decimal number 0 < x < 1.  A value of 0.1 (0.15, etc) means a +10% (+15%, etc) bonus to the fighter's chance of avoiding being hit each round. No matter what bonus is specified, ToDefend is capped to 0% <= x <= 90%
+BonusToDefend     -- A decimal number.  A value of 0.1 (0.15, etc) means a +10% (+15%, etc) bonus to the fighter's chance of avoiding being hit each round. The final ToHit value is (DEFAULT-TO-HIT + BonusToHit). No matter what, final ToHit is capped to 0% <= x <= 90%
 
 AOE               -- An integer.  This is the number of people that the combatant will attack each round.  Used to simulate AOE attacks or multiple attacks.  If <1 it will be set to 1.
 
 BuffNextNumAllies -- Number of allies below themselves in the list to apply their BuffAlliesOffense and BuffAlliesDefense to.  It's okay if this number is larger than the number of combatants left in the file.
 
-BuffAlliesOffense -- A decimal number 0 <= x < 1, representing the percentage by which to boost allies offensive power.  "BuffAlliesOffense 0.1" means that allies get their ToHit increased by 10%, making them more likely to cause damage.  The boost only applies to the next N combatants below this one, where N is the value of BuffNextNumAllies.
+BuffAlliesOffense -- A decimal number < 1, representing the percentage by which to boost allies offensive power.  "BuffAlliesOffense 0.1" means that allies get their ToHit increased by 10%, making them more likely to cause damage.  The boost only applies to the next N combatants below this one, where N is the value of BuffNextNumAllies.
 
 BuffAlliesDefense -- Same as BuffAlliesOffense except it increases their ToDefend instead of their ToHit.
 
