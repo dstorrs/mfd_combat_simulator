@@ -1,3 +1,3 @@
 #lang racket
 
-(define version "0.4")
+(define version "0.5")
