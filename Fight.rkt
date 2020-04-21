@@ -50,7 +50,7 @@
          struct-plus-plus
          )
 
-(define csv-column-names  (make-parameter ""))
+(define csv-column-names  (make-parameter '()))
 (define-logger fight)
 
 ;;----------------------------------------------------------------------
