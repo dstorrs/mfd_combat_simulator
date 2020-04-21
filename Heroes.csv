@@ -1,9 +1,28 @@
-Name,     XP,     BonusXP, Wounds, BonusHP, BonusToHit, BonusToDefend, AOE,               BuffNextNumAllies, BuffAlliesOffense, BuffAlliesDefense, LinkedTo, BodyguardFor
-Ami,      13993,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,         ,
-Kei,      5785,   0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,         ,
-Prime,    17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,         ,
-Naruto0,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,     Prime    , Prime
-Naruto1,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,     Prime    , Prime
-Naruto2,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,     Prime    , Prime
-Naruto3,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,     Prime    , Prime
-Naruto4,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0.2,               0                ,     Prime    , Prime
+Name,XP,BonusXP,Wounds,BonusHP,BonusToHit,BonusToDefend,BuffNextNumAllies,BuffAlliesOffense,BuffAlliesDefense,LinkedTo,BodyguardFor
+Ami,13993,,,,,0,,,0,,Kei
+Kei,5785,,,,,0,,,0,,
+Prime,17854,,,,0.15,0,,,0,,
+Naruto 1,17854,,1,,0.15,,,,,Prime,Prime
+Naruto 2,17854,,1,,0.15,,,,,Prime,Prime
+Naruto 3,17854,,1,,0.15,,,,,Prime,Prime
+Naruto 4,17854,,1,,0.15,,,,,Prime,Prime
+Naruto 5,17854,,1,,0.15,,,,,Prime,Prime
+Naruto 6,17854,,1,,0.15,,,,,Prime,Kei
+Naruto 7,17854,,1,,0.15,,,,,Prime,Kei
+Naruto 8,17854,,1,,0.15,,,,,Prime,Kei
+Naruto 9,17854,,1,,0.15,,,,,Prime,Kei
+Naruto 10,17854,,1,,0.15,,,,,Prime,Kei
+Naruto 11,17854,,1,,0.15,,,,,Prime,Kei
+Naruto 12,17854,,1,,0.15,,,,,Prime,Ami
+Naruto 13,17854,,1,,0.15,,,,,Prime,Ami
+Naruto 14,17854,,1,,0.15,,,,,Prime,Ami
+Naruto 15,17854,,1,,0.15,,,,,Prime,Jounin A
+Naruto 16,17854,,1,,0.15,,,,,Prime,Jounin A
+Naruto 17,17854,,1,,0.15,,,,,Prime,Jounin A
+Naruto 18,17854,,1,,0.15,,,,,Prime,Jounin B
+Naruto 19,17854,,1,,0.15,,,,,Prime,Jounin B
+Naruto 20,17854,,1,,0.15,,,,,Prime,Jounin B
+Jounin A,17378,,,,,,,,,,
+Jounin B,17378,,,,,,,,,,
+Pangolin A,8000,,,,,,,,,Kei,
+Pangolin A,8000,,,,,,,,,Kei,

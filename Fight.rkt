@@ -71,11 +71,13 @@
 ;;----------------------------------------------------------------------
 
 (define (to-num v)
-  (if (string? v)
-      (string->number (string-trim v))
-      v))
+  (match v
+    ["" 0]
+    [(? string?) (string->number (string-trim v))]
+    [_ v]))
 
 (define number-like? (or/c number?
+                           ""
                            (and/c non-empty-string?
                                   (λ (v) (regexp-match #px"[0-9]" v)))))
 
