@@ -395,8 +395,6 @@
   (displayln (format "\n\nDumping the final state of all combatants to ~a and ~a"
                      heroes-final-path
                      villains-final-path))
-  (displayln (format  "heroes is: ~v" heroes))
-  (displayln (format  "villains is: ~v" villains))
   (with-output-to-file
     #:exists 'replace
     heroes-final-path
