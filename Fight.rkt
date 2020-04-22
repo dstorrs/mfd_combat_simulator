@@ -181,6 +181,10 @@
 
 ;;----------------------------------------------------------------------
 
+(define (all-names fighters) (string-join (map combatant-Name fighters) ","))
+
+;;----------------------------------------------------------------------
+
 (define (sort-combatants lst)
   (sort lst (λ (a b)
               (string<? (combatant-Name a)
@@ -299,7 +303,7 @@
 
   (define all-attackers (sort-combatants att))
 
-  (log-fight-debug "generating matchups.\n\t all-attackers: ~v\n\t side 2: ~v"
+  (log-fight-debug "generating matchups.\n\t all-attackers: ~v\n\t all-defenders: ~v"
                    all-attackers all-defenders)
 
   (define matchups
@@ -314,18 +318,21 @@
                 (log-fight-debug "AOE was higher than number of defenders. using all defenders")
                 all-defenders]
                [else
-                (for/list ([candidate (take all-defenders AOE)])
+                (define shuffled-defenders (shuffle all-defenders))
+                (log-fight-debug "shuffled defenders: ~a" (map combatant-Name shuffled-defenders))
+                (for/list ([candidate shuffled-defenders]
+                           [i         AOE]) ; no more than this many
                   (define candidate-name (combatant-Name candidate))
-
+                  (log-fight-debug "~a is trying to attack ~a" attacker-name candidate-name)
                   (define bodyguards (filter is-alive? (combatant-BodyguardingMe candidate)))
                   (log-fight-debug "bodyguards for candiate ~a: ~a"
                                    candidate-name
                                    (if (null? bodyguards)
                                        "<none>"
-                                       (string-join (map combatant-Name bodyguards))))
+                                       (all-names bodyguards)))
                   (cond [(null? bodyguards)                   candidate]
                         [else (define choice (pick bodyguards))
-                              (displayln (format "~a tried to hit ~a but ~a jumped in the way!"
+                              (displayln (format "\t~a tried to hit ~a but ~a jumped in the way!"
                                                  attacker-name
                                                  candidate-name
                                                  (combatant-Name choice)))
@@ -363,6 +370,9 @@
 (define/contract (fight-one-round heroes villains)
   (-> (listof combatant?) (listof combatant?) any)
 
+  (log-fight-debug "entering fight-one-round with heroes:\n ~a \n villains: ~a"
+                   (all-names heroes)
+                   (all-names villains))
   (define h2v (generate-matchups heroes villains))
   (define v2h (generate-matchups villains heroes))
 
@@ -372,7 +382,6 @@
   ; heroes attack villains first, then vice versa.  All attacks are simultaneous, no one
   ; is marked dead until the round is over.
   (for ([lst (list h2v v2h)])
-
     (define all-attackers       (map car lst))  ; (listof combatant?)
     (define all-defender-groups (map cdr lst))  ; (listof (listof combatant?))
 
@@ -412,27 +421,28 @@
                                       ", and will die at end of round."
                                       ".")))
                (when (not (is-alive? defender))
-                 ; kill everyone linked to the now-deceased defender
-                 (define all-linked (combatant-Linked-to-Me defender))
+                 ; kill all living combatants who were linked to the now-deceased defender
+                 (define all-linked (filter is-alive? (combatant-Linked-to-Me defender)))
                  (when (not (null? all-linked))
                    (displayln (format "  The following combatants were linked to ~a and will die at end of round: ~a"
                                       defender-name
-                                      (string-join (map combatant-Name all-linked) ", "))))
+                                      (all-names all-linked))))
                  (for ([linked all-linked])
                    (set-combatant-Wounds! linked
                                           (max (combatant-Wounds linked)
                                                (combatant-HP     linked)))))]
               [else
-               (displayln (format "~a failed to hurt ~a..." attacker-name defender-name))]))))
+               (displayln (format "~a failed to hurt ~a..." attacker-name defender-name))])))
+    (displayln "\n"))
 
-  (displayln "\n round ends.  Survivors: \n")
-  )
+  (displayln "\n round ends.  Survivors are:\n\n")
+  (show-sides (filter is-alive? heroes) (filter is-alive? villains)))
 
 ;;----------------------------------------------------------------------
 
 (define/contract (write-combatant-data heroes villains)
   (-> (listof combatant?) (listof combatant?)
-       any)
+      any)
 
   (define heroes-final-path (path->string     (build-path 'same "Heroes-final.csv")))
   (define villains-final-path (path->string     (build-path 'same "Villains-final.csv")))
@@ -491,14 +501,12 @@
              )
     (log-fight-debug "loop for round ~a" round#)
     (cond [(> round# (max-rounds))
-           (displayln "\n\n Battle ends! Max number of rounds fought.  Final result:\n")
-           (show-sides heroes villains)
+           (displayln "\n\n Battle ends! Max number of rounds fought.")
            (write-combatant-data heroes villains)
            ]
           [(or (null? heroes)
                (null? villains))
-           (displayln "\n\n Battle ends!  One side has been eliminated. Final result:")
-           (show-sides heroes villains)
+           (displayln "\n\n Battle ends!  One side has been eliminated.")
            (write-combatant-data heroes villains)]
           [else
            (displayln (format "\n\tRound ~a, fight!" round#))
