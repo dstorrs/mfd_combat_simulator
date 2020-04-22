@@ -2,8 +2,8 @@ Name,     XP,    BonusXP,Wounds,BonusHP,BonusToHit,BonusToDefend,BuffNextNumAlli
 Ami,      13993,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0      ,        ,
 Kei,      5785,   0,       0,      0,       0.2,        0.1,             0,                 0,                 0      ,        ,
 Prime,    17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0      ,        ,
-Naruto0,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0      ,  Prime , Prime
-Naruto1,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0      ,  Prime , Prime
-Naruto2,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0      ,  Prime , Prime
-Naruto3,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0      ,  Prime , Prime
-Naruto4,  17854,  0,       0,      0,       0.2,        0.1,             0,                 0,                 0      ,  Prime , Prime
+Naruto0,  17854,  0,       1,      0,       0.2,        0.1,             0,                 0,                 0      ,  Prime , Prime
+Naruto1,  17854,  0,       1,      0,       0.2,        0.1,             0,                 0,                 0      ,  Prime , Prime
+Naruto2,  17854,  0,       1,      0,       0.2,        0.1,             0,                 0,                 0      ,  Prime , Prime
+Naruto3,  17854,  0,       1,      0,       0.2,        0.1,             0,                 0,                 0      ,  Prime , Prime
+Naruto4,  17854,  0,       1,      0,       0.2,        0.1,             0,                 0,                 0      ,  Prime , Prime
