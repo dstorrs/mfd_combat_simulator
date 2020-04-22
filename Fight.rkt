@@ -511,7 +511,8 @@
           [else
            (displayln (format "\n\tRound ~a, fight!" round#))
 
-           (fight-one-round heroes villains)
+           (fight-one-round (filter is-alive? heroes)
+                            (filter is-alive? villains))
            (log-fight-debug "after fight-one-round for round ~a" round#)
 
            ; After every round, combatants are more tired, lower on chakra, etc, and
