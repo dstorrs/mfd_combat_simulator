@@ -55,21 +55,6 @@
 
 ;;----------------------------------------------------------------------
 
-(define (show-sides heroes villains)
-  (displayln "Heroes:")
-  (if (null? heroes)
-      (displayln " <no survivors>")
-      (for ([hero heroes])
-        (displayln (combatant/convert->report-string hero))))
-
-  (displayln "\n\nVillains:")
-  (if (null? villains)
-      (displayln " <no survivors>")
-      (for ([villain villains])
-        (displayln (combatant/convert->report-string villain)))))
-
-;;----------------------------------------------------------------------
-
 (define (to-num v)
   (match v
     ["" 0]
@@ -97,11 +82,13 @@
            [BodyguardFor      string? string-trim]
            ;
            ; Private values, should not be in the .csv file
-           [(HP          #f)]
-           [(Dice        #f)]
-           [(ToHit       #f)]
-           [(ToDefend    #f)]
-           [(EffectiveXP #f)]
+           [(HP             #f) integer?]
+           [(Dice           #f) integer?]
+           [(ToHit          #f) real?   ]
+           [(ToDefend       #f) real?   ]
+           [(EffectiveXP    #f) integer?]
+           [(BodyguardingMe '()) (listof combatant?)]
+           [(Linked-to-Me   '()) (listof combatant?)]
            )
           (#:rule ("calculate HP" #:transform HP (BonusHP Wounds)
                    [(or HP ; only do this if it wasn't set
@@ -177,10 +164,10 @@
                                                               ('LinkedTo linked-to)
                                                               )
                                       h)
-                                    (format "~a:\tHP(~a), ToHit(~a%), ToDefend(~a%), AOE (~a), Total XP (~a), Dice(~a), Bodyguarding ~a, Linked to ~a"
+                                    (format "~a:\tHP(~a), ToHit(~a%), ToDefend(~a%), AOE (~a), Total XP (~a), Dice(~a), Bodyguarding: ~a, Linked to: ~a"
                                             name hp
-                                            (real->decimal-string (* 100 to-hit) 0)
-                                            (real->decimal-string (* 100 to-defend) 0)
+                                            (real->decimal-string (* 100 to-hit)    1)
+                                            (real->decimal-string (* 100 to-defend) 1)
                                             aoe total-xp dice
                                             (if (empty-string? bodyguard-for)
                                                 "<no one>"
@@ -192,125 +179,169 @@
           #:mutable
           )
 
-(define (make-more-tired fighter)
+;;----------------------------------------------------------------------
+
+(define (sort-combatants lst)
+  (sort lst (λ (a b)
+              (string<? (combatant-Name a)
+                        (combatant-Name b)))))
+
+;;----------------------------------------------------------------------
+
+(define (show-sides heroes villains)
+  (displayln "Heroes:")
+  (if (null? heroes)
+      (displayln " <no survivors>")
+      (for ([hero heroes])
+        (displayln (combatant/convert->report-string hero))))
+
+  (displayln "\n\nVillains:")
+  (if (null? villains)
+      (displayln " <no survivors>")
+      (for ([villain villains])
+        (displayln (combatant/convert->report-string villain)))))
+
+;;----------------------------------------------------------------------
+
+(define/contract (is-alive? fighter)
+  (-> combatant? (or/c combatant? #f))
+  (if (>= (combatant-HP fighter) (combatant-Wounds fighter))
+      fighter
+      #f))
+
+(define living-combatant/c (and/c combatant? is-alive?))
+
+(define/contract (make-more-tired fighter)
+  (-> combatant? combatant?)
   fighter #;
   (set-combatant-ToDefend fighter (- (combatant-ToDefend fighter) 0.1)))
 
-;;----------------------------------------------------------------------
+;; ;;----------------------------------------------------------------------
 
-; Ensure that no one has a 'LinkedTo' or 'BodyguardFor' that uses a name for a combatant
-; not in that file.
-(define/contract (validate-names rows)
-  (-> (listof combatant?) any)
-  (match-define (list (struct* combatant ([Name names] [BodyguardFor def] [LinkedTo links]))
-                      ...)
-    rows)
+(define/contract (make-combatants rows)
+  (-> (non-empty-listof (non-empty-listof string?))
+      (non-empty-listof combatant?))
+  (define headers (csv-column-names))
 
-  (define all-names (list->set names))
-  (define linked    (list->set (filter non-empty-string? links)))
-  (define defenders (list->set (filter non-empty-string? def)))
-
-  (unless (subset? linked all-names)
-    (error (format "One of the combatants had an unrecognized LinkedTo: ~v" rows)))
-
-  (unless (subset? defenders all-names)
-    (error (format "One of the combatants had an unrecognized BodyguardFor: ~v" rows))))
-
-;;----------------------------------------------------------------------
-
-(define (is-alive? fighter)
-  (> (combatant-HP fighter) (combatant-Wounds fighter)))
-
-(define (hashify rows headers)
+  ; We get a list of lists where the inner lists are a row from the CSV file.  We turn
+  ; that into a hash, then into a combatant? in order to let struct++ run its rules.
+  ;
+  ; The results of this function will be passed to `initialize`, which will take care of
+  ; calculating buffs, tracking linked people and bodyguards, etc.
+  ;
   (for/list ([row (cdr rows)])
-    (struct->hash combatant
-                  (hash->struct/kw combatant++
-                                   (for/hash ([h headers]
-                                              [v row])
-                                     (values (string->symbol h)
-                                             (string-trim v)))))))
+    (hash->struct/kw combatant++
+                     (for/hash ([h headers]
+                                [v row])
+                       (values (string->symbol h)
+                               (string-trim v))))))
 
-(define (initialize rows)
-  (define max-allies (sub1 (length rows))) ; only the first person can actually have this many
-  (let loop ([result   '()]
-             [i        0]
-             [rows     rows])
-    (cond [(null? rows) (map (curry hash->struct/kw combatant++)
-                             (reverse result))]
+;;----------------------------------------------------------------------
+
+(define/contract (initialize combatants)
+  (-> (non-empty-listof combatant?)
+      (non-empty-listof combatant?))
+
+  ; First, set each combatant to know its bodyguards and linkages
+  (for ([fighter combatants])
+    (define fighter-name (combatant-Name fighter))
+
+    ;  Have each combatant keep track of their own bodyguards
+    (set-combatant-BodyguardingMe!
+     fighter
+     (filter (λ (f)
+               (define protectee-name (combatant-BodyguardFor f))
+               (equal? fighter-name protectee-name))
+             combatants))
+
+    ;  Have each combatant keep track of who is linked to them
+    (set-combatant-Linked-to-Me!
+     fighter
+     (filter (λ (f)
+               (define linked-to-name (combatant-LinkedTo f))
+               (equal? fighter-name linked-to-name))
+             combatants)))
+
+  ; Modify each combatant's combat stats based on ally buffs
+  (define max-allies (sub1 (length combatants))) ; only the first person can have this many
+  (let loop ([fighter           (car combatants)]
+             [potential-allies  (cdr combatants)])
+    (cond [(null? potential-allies) combatants]
           [else
-           (match (car rows)
-             [(and current
-                   (hash-table ('BuffNextNumAllies raw-num-allies)
-                               ('BuffAlliesOffense attack-boost)
-                               ('BuffAlliesDefense defense-boost)))
-              (define num-allies  (min raw-num-allies (- max-allies i)))
-              (define normalized (hash-set current 'BuffNextNumAllies num-allies))
+           (match fighter
+             [(and (struct* combatant ([BuffNextNumAllies raw-num-allies]
+                                       [BuffAlliesOffense attack-boost]
+                                       [BuffAlliesDefense defense-boost])))
+              (define num-allies  (min raw-num-allies (length potential-allies)))
 
               ; Allies are the next `num-allies` rows
-              (define-values (allies others) (split-at (rest rows) num-allies))
-
-              (loop (cons normalized result)
-                    (add1 i)
-                    (append (for/list ([ally allies])
-                              (match ally
-                                [(hash-table ('ToHit attack) ('ToDefend defense))
-                                 (safe-hash-set ally
-                                                'ToHit    (+ attack  attack-boost)
-                                                'ToDefend (+ defense defense-boost))]))
-                            others))])])))
-
-(define bodyguard-hash/c (hash/c combatant? (listof combatant?)))
-(define/contract (generate-bodyguard-hash fighters)
-  (-> (listof combatant?)  bodyguard-hash/c)
-
-  ; Return a hash where the keys are `combatant` structs and the values are a listof
-  ; `combatant` structs signifying which combatants will take a bullet for which
-  ;
-  ;(hash Alice (list Bob Charlie))  ; Bob and Charlie are bodyguarding Alice
-
-  (for/hash ([fighter fighters])
-    (define name (combatant-Name fighter))
-    (values fighter
-            (filter (λ (f) (equal? name (combatant-BodyguardFor f)))
-                    fighters))))
+              (define allies (take potential-allies num-allies))
+              (for ([ally allies])
+                (match-define (struct* combatant ([ToHit toHit] [ToDefend toDefend])) ally)
+                (set-combatant-ToHit!    ally (+ toHit    attack-boost))
+                (set-combatant-ToDefend! ally (+ toDefend defense-boost)))
+              (loop (car potential-allies)
+                    (cdr potential-allies))])])))
 
 ;;----------------------------------------------------------------------
 
 ; generate-matchups  side1 side2
 ;
-; Takes two lists of combatants, returns a hash where each key/value
-; pair is an attacker and the list of people they will attack this
-; round.  It's usually only 1 defender, but attackers with AOE attacks
-; might hit multiple people.  If any of the chosen defenders have
-; bodyguards then a random pick from the bodyguards will be
-; substituted for that defender.
-(define/contract (generate-matchups  side1 side2)
-  (-> (listof combatant?) (listof combatant?)
-      (hash/c combatant? (listof combatant?)))
+; Takes two lists of combatants, returns a LoL where the inner lists are (attacker
+; defender ..+). It's usually only 1 defender, but attackers with AOE attacks might hit
+; multiple people.  If a chosen defender has bodyguards then a random pick from the
+; bodyguards will be substituted for that defender when the list is assembled.
+(define/contract (generate-matchups att all-defenders)
+  (-> (listof living-combatant/c) (listof living-combatant/c)
+      (non-empty-listof ; list of lists, each sublist has 2+ members  (attacker, 1+ defenders)
+       (and/c (listof living-combatant/c)
+              (λ (l) (>= (length l) 2)))))
 
-  (define side2-bodyguards (generate-bodyguard-hash side2))
-  (for/hash ([attacker side1])
-    (log-fight-debug "attacker ~v has AOE ~a" attacker (combatant-AOE attacker))
-    (define defenders
-      (for/fold ([result '()])
-                ([i (combatant-AOE attacker)])
-        (define candidate (pick side2))
-        (define candidate-bodyguards (filter is-alive? (hash-ref side2-bodyguards candidate '())))
-        (cond [(null? candidate-bodyguards)
-               (cons  candidate result)]
-              [else
-               (define chosen-bodyguard (pick candidate-bodyguards))
-               (displayln (format "  NOTE: ~a tried to attack ~a but ~a heroically jumped in the way!"
-                                  (combatant-Name attacker)
-                                  (combatant-Name candidate)
-                                  (combatant-Name chosen-bodyguard)))
-               (cons chosen-bodyguard result)])))
+  (define all-attackers (sort-combatants att))
 
-    (values attacker defenders)))
+  (log-fight-debug "generating matchups.\n\t all-attackers: ~v\n\t side 2: ~v"
+                   all-attackers all-defenders)
+
+  (define matchups
+    (for/list ([attacker all-attackers])
+      (log-fight-debug "attacker ~v has AOE ~a" attacker (combatant-AOE attacker))
+
+      (define attacker-name (combatant-Name attacker))
+      (define AOE (combatant-AOE attacker))
+      (define defenders
+        (sort-combatants
+         (cond [(> AOE (length all-defenders))
+                (log-fight-debug "AOE was higher than number of defenders. using all defenders")
+                all-defenders]
+               [else
+                (for/list ([candidate (take all-defenders AOE)])
+                  (define candidate-name (combatant-Name candidate))
+
+                  (define bodyguards (filter is-alive? (combatant-BodyguardingMe candidate)))
+                  (log-fight-debug "bodyguards for candiate ~a: ~a"
+                                   candidate-name
+                                   (if (null? bodyguards)
+                                       "<none>"
+                                       (string-join (map combatant-Name bodyguards))))
+                  (cond [(null? bodyguards)                   candidate]
+                        [else (define choice (pick bodyguards))
+                              (displayln (format "~a tried to hit ~a but ~a jumped in the way!"
+                                                 attacker-name
+                                                 candidate-name
+                                                 (combatant-Name choice)))
+                              choice]))])))
+      (log-fight-debug "final matchup for attacker ~v: ~v" attacker defenders)
+      (cons attacker defenders)))
+
+  (log-fight-debug "all final matchups:\n ~a"
+                   (with-output-to-string
+                     (thunk (pretty-print matchups))))
+  matchups)
 
 ;;----------------------------------------------------------------------
 
-(define (generate-hits fighter)
+(define/contract (generate-hits fighter)
+  (-> combatant? natural-number/c)
   (match-define (struct* combatant ([Name name] [Dice dice] [ToHit ToHit])) fighter)
   (define result (for/sum ([n dice]) (if (<= (random) ToHit) 1 0)))
   ;(displayln (format "~a generated ~a raw hits" name result))
@@ -318,7 +349,9 @@
 
 ;;----------------------------------------------------------------------
 
-(define (block-hits fighter)
+(define/contract (block-hits fighter)
+  (-> combatant? natural-number/c)
+
   (match-define (struct* combatant ([Name name] [Dice dice] [ToDefend ToDefend])) fighter)
   (define result (for/sum ([n dice]) (if (< (random) ToDefend) 1 0)))
   ;(displayln (format "~a blocked ~a raw hits" name result))
@@ -327,41 +360,47 @@
 
 ;;----------------------------------------------------------------------
 
-(define/contract (run-combat heroes villains)
+(define/contract (fight-one-round heroes villains)
   (-> (listof combatant?) (listof combatant?) any)
 
-  (define sides (shuffle (list heroes villains)))
-  (log-fight-debug "sides are: ~v" sides)
-
-  (define h2v (apply generate-matchups sides))
-  (define v2h (apply generate-matchups (reverse sides)))
+  (define h2v (generate-matchups heroes villains))
+  (define v2h (generate-matchups villains heroes))
 
   (log-fight-debug "h2v is: ~v" h2v)
   (log-fight-debug "v2h is: ~v" v2h)
 
   ; heroes attack villains first, then vice versa.  All attacks are simultaneous, no one
-  ; is marked dead until the round is over WITH THE EXCEPTION that a bodyguard doesn't get
-  ; to keep bodyguarding after taking fatal damage, although they will get their licks in
-  ; for that round.
-  (for ([hsh (list h2v v2h)])
-    (for ([(attacker defenders) (in-hash hsh)])
+  ; is marked dead until the round is over.
+  (for ([lst (list h2v v2h)])
+
+    (define all-attackers       (map car lst))  ; (listof combatant?)
+    (define all-defender-groups (map cdr lst))  ; (listof (listof combatant?))
+
+    (log-fight-debug "all-attackers: ~a\n-------------\nall-defender-groups: ~a"
+                     (with-output-to-string
+                       (thunk (pretty-print all-attackers)))
+                     (with-output-to-string
+                       (thunk (pretty-print all-defender-groups))))
+
+    (for ([attacker  all-attackers]
+          [defenders all-defender-groups])
       (log-fight-debug " attacker ~v\n defenders ~v" attacker defenders)
 
+      (define attacker-name (combatant-Name attacker))
       (when (> (length defenders) 1)
         (displayln (format "\t Note: ~a has AoE attacks and is potentially hitting ~a people!"
-                           (combatant-Name attacker)
+                           attacker-name
                            (length defenders))))
       (for ([defender defenders])
-        (log-fight-debug "defender: ~v" defender)
-        (match-define (list (struct* combatant ([Name attacker-name]))
-                            (struct* combatant ([Name defender-name]
-                                                [Wounds defender-wounds]
-                                                [HP defender-hp])))
-          (list attacker defender))
+        (log-fight-debug "defender: ~a" defender)
+        (match-define (struct* combatant ([Name   defender-name]
+                                          [Wounds defender-wounds]
+                                          [HP     defender-hp]))
+          defender)
 
         (define wounds-inflicted (- (generate-hits attacker) (block-hits defender)))
         (cond [(> wounds-inflicted 0)
-               (define total-damage-received  (+ (combatant-Wounds defender) wounds-inflicted))
+               (define total-damage-received  (+ defender-wounds wounds-inflicted))
                (set-combatant-Wounds! defender total-damage-received)
                (displayln (format "~a hit ~a for ~a damage! ~a is at ~a HP~a"
                                   attacker-name
@@ -373,22 +412,27 @@
                                       ", and will die at end of round."
                                       ".")))
                (when (not (is-alive? defender))
-                 (define linked (filter (λ (c)
-                                          (equal? (combatant-LinkedTo c) defender-name))
-                                        (append heroes villains)))
-                 (when (not (null? linked))
+                 ; kill everyone linked to the now-deceased defender
+                 (define all-linked (combatant-Linked-to-Me defender))
+                 (when (not (null? all-linked))
                    (displayln (format "  The following combatants were linked to ~a and will die at end of round: ~a"
                                       defender-name
-                                      (string-join (map combatant-Name linked) ", ")))
-                   (for ([fighter linked])
-                     (set-combatant-HP! fighter (min 0 (combatant-HP fighter))))))]
+                                      (string-join (map combatant-Name all-linked) ", "))))
+                 (for ([linked all-linked])
+                   (set-combatant-Wounds! linked
+                                          (max (combatant-Wounds linked)
+                                               (combatant-HP     linked)))))]
               [else
-               (displayln (format "~a failed to hurt ~a..." attacker-name defender-name))])))))
+               (displayln (format "~a failed to hurt ~a..." attacker-name defender-name))]))))
+
+  (displayln "\n round ends.  Survivors: \n")
+  )
 
 ;;----------------------------------------------------------------------
 
 (define/contract (write-combatant-data heroes villains)
-  (-> (listof combatant?) (listof combatant?) any)
+  (-> (listof combatant?) (listof combatant?)
+       any)
 
   (define heroes-final-path (path->string     (build-path 'same "Heroes-final.csv")))
   (define villains-final-path (path->string     (build-path 'same "Villains-final.csv")))
@@ -433,16 +477,10 @@
   (csv-column-names headers)
   (log-fight-debug "headers matched")
 
-  ; turn the CSV records into hashes and then into structs
-  (define heroes   (initialize (hashify heroes-file   headers)))
-  (define villains (initialize (hashify villains-file headers)))
-
+  ; Turn the CSV records into structs and initialize them
+  (define heroes   (initialize (make-combatants heroes-file)))
+  (define villains (initialize (make-combatants villains-file)))
   (log-fight-debug "initialized heroes and villains")
-
-  (validate-names heroes)
-  (validate-names villains)
-
-  (log-fight-debug "validated heroes and villains")
 
   (displayln "At start of battle, the sides are:\n")
   (show-sides heroes villains)
@@ -452,35 +490,41 @@
              [round#   1]
              )
     (log-fight-debug "loop for round ~a" round#)
-
-    (cond [(or (null? heroes)
-               (null? villains)
-               (> round# (max-rounds)))
-           (displayln "\n\n Battle ends!  Final result:")
+    (cond [(> round# (max-rounds))
+           (displayln "\n\n Battle ends! Max number of rounds fought.  Final result:\n")
+           (show-sides heroes villains)
+           (write-combatant-data heroes villains)
+           ]
+          [(or (null? heroes)
+               (null? villains))
+           (displayln "\n\n Battle ends!  One side has been eliminated. Final result:")
            (show-sides heroes villains)
            (write-combatant-data heroes villains)]
           [else
            (displayln (format "\n\tRound ~a, fight!" round#))
 
-           (run-combat heroes villains)
-
-           (log-fight-debug "after run-combat for round ~a" round#)
+           (fight-one-round heroes villains)
+           (log-fight-debug "after fight-one-round for round ~a" round#)
 
            ; After every round, combatants are more tired, lower on chakra, etc, and
-           ; simultaneously get more desperate for a win.  To represent that, we reduce
-           ; their ToDefend by 0.1 (i.e. 10%).  This prevents any possibility of stalemate
-           ; due to fighters with ridiculously high defense or low attack.
+           ; simultaneously get more desperate for a win.  To represent that,
+           ; make-more-tired will adjust their combat stats downward.  This prevents any
+           ; possibility of stalemate due to fighters with ridiculously high defense or
+           ; low attack.
            (loop (map make-more-tired (filter is-alive? heroes))
                  (map make-more-tired (filter is-alive? villains))
-                 (add1 round#))])))
+                 (add1 round#))]))
+
+  )
 
 (define logfilepath   (build-path 'same "BattleLog.txt"))
+
+;  Run the fight and send the output to the log file
 (with-output-to-file
   logfilepath
   #:exists 'replace
   #:mode   'text
   (thunk
-
    (command-line
     #:program "Fight.rkt"
     #:once-each
@@ -490,6 +534,8 @@
     [("--villains") vf "A relative path to a combatants CSV file. Default: ./Villains.csv" (villains-filepath (build-path 'same vf))]
     )
    (run)
-   (displayln "\n\n\t NOTE: Output was saved to './BattleLog.txt'")))
+   (displayln (format "\n\n\t NOTE: Output was saved to '~a'" (path->string logfilepath)))
+   ))
 
+; display the log file to STDOUT
 (displayln (file->string logfilepath))
