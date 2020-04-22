@@ -351,7 +351,10 @@
                                                  attacker-name
                                                  candidate-name
                                                  (combatant-Name choice)))
-                              (set-combatant-CurrentlyBodyguarding?! choice #t)
+                              ;   This was an experiment, but we're going back to the
+                              ;   "bodyguards can block unlimited hits" model
+                              ;
+                              ;(set-combatant-CurrentlyBodyguarding?! choice #t)
                               choice]))])))
       (log-fight-debug "final matchup for attacker ~a: ~a"
                        (combatant-Name attacker)
