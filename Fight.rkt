@@ -82,13 +82,14 @@
            [BodyguardFor      string? string-trim]
            ;
            ; Private values, should not be in the .csv file
-           [(HP             #f) integer?]
-           [(Dice           #f) integer?]
-           [(ToHit          #f) real?   ]
-           [(ToDefend       #f) real?   ]
-           [(EffectiveXP    #f) integer?]
-           [(BodyguardingMe '()) (listof combatant?)]
-           [(Linked-to-Me   '()) (listof combatant?)]
+           [(HP                   #f)  integer?]
+           [(Dice                 #f)  integer?]
+           [(ToHit                #f)  real?   ]
+           [(ToDefend             #f)  real?   ]
+           [(EffectiveXP          #f)  integer?]
+           [(BodyguardingMe       '()) (listof combatant?)]
+           [(Linked-to-Me         '()) (listof combatant?)]
+           [(CurrentlyBodyguarding #f)  boolean?]
            )
           (#:rule ("calculate HP" #:transform HP (BonusHP Wounds)
                    [(or HP ; only do this if it wasn't set
@@ -324,18 +325,21 @@
                            [i         AOE]) ; no more than this many
                   (define candidate-name (combatant-Name candidate))
                   (log-fight-debug "~a is trying to attack ~a" attacker-name candidate-name)
-                  (define bodyguards (filter is-alive? (combatant-BodyguardingMe candidate)))
-                  (log-fight-debug "bodyguards for candiate ~a: ~a"
+                  (define bodyguards (filter (and/c is-alive?
+                                                    (negate combatant-CurrentlyBodyguarding))
+                                             (combatant-BodyguardingMe candidate)))
+                  (log-fight-debug "living, not occupied bodyguards for candiate ~a: ~a"
                                    candidate-name
                                    (if (null? bodyguards)
                                        "<none>"
                                        (all-names bodyguards)))
                   (cond [(null? bodyguards)                   candidate]
                         [else (define choice (pick bodyguards))
-                              (displayln (format "\t~a tried to hit ~a but ~a jumped in the way!"
+                              (displayln (format "\t~a wanted to hit ~a but ~a jumped in the way!"
                                                  attacker-name
                                                  candidate-name
                                                  (combatant-Name choice)))
+                              (set-combatant-CurrentlyBodyguarding! choice #t)
                               choice]))])))
       (log-fight-debug "final matchup for attacker ~v: ~v" attacker defenders)
       (cons attacker defenders)))
@@ -343,6 +347,10 @@
   (log-fight-debug "all final matchups:\n ~a"
                    (with-output-to-string
                      (thunk (pretty-print matchups))))
+  (for ([next (append att all-defenders)])
+    (set-combatant-CurrentlyBodyguarding! next #f))
+
+  
   matchups)
 
 ;;----------------------------------------------------------------------
