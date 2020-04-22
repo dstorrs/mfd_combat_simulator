@@ -1,5 +1,5 @@
-Name,     XP,    BonusXP,Wounds,BonusHP,BonusToHit,BonusToDefend,BuffNextNumAllies,BuffAlliesOffense,BuffAlliesDefense,LinkedTo,  BodyguardFor
-Conjura,  55000, ,       1,     0,      0.3,       0,            0                ,    0.2          ,   0             , Summoner , Summoner
-Summoner, 30983, ,       0,     0,      0.1,       0,            0                ,    0.2          ,   0             ,          ,     
-Mook A,   19431, ,       0,     0,      0.1,       0,            0                ,    0.2          ,   0             , Conjura  , Conjura
-Mook B,   19431, ,       0,     1,      0.1,       0,            0                ,    0.1          ,   0.7           ,          , Summoner
+Name,XP,BonusXP,Wounds,BonusHP,BonusToHit,BonusToDefend,AOE,BuffNextNumAllies,BuffAlliesOffense,BuffAlliesDefense,LinkedTo,BodyguardFor
+Conjura,55000,,1,0,0.3,0.3,3,3,0.2,0.1,Summoner,Summoner
+Summoner,30983,-15000,0,0,0.1,0,,2,0.2,0,,
+Mook A,14901,,0,0,0.1,0,,2,0.2,0,,Summoner
+Mook B,14901,,0,1,0.2,0,,1,0.1,0.7,,Summoner
