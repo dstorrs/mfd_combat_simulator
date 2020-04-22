@@ -59,7 +59,10 @@
   (match v
     ["" 0]
     [(? string?) (string->number (string-trim v))]
-    [_ v]))
+    [(? number?) v]
+    [else (raise-arguments-error 'to-num
+                                 "could not convert value to number"
+                                 "value" v)]))
 
 (define number-like? (or/c number?
                            ""
@@ -74,7 +77,7 @@
            [BonusHP           number-like? to-num]
            [BonusToHit        number-like? to-num]
            [BonusToDefend     number-like? to-num]
-           [(AOE DEFAULT-AOE) number-like? to-num]
+           [(AOE DEFAULT-AOE) number-like? (compose1 (curry max 1) to-num)]
            [BuffNextNumAllies number-like? to-num]
            [BuffAlliesOffense (compose1 (</c 1) to-num) to-num]
            [BuffAlliesDefense (compose1 (</c 1) to-num) to-num]
@@ -89,7 +92,7 @@
            [(EffectiveXP          #f)  integer?]
            [(BodyguardingMe       '()) (listof combatant?)]
            [(Linked-to-Me         '()) (listof combatant?)]
-           [(CurrentlyBodyguarding #f)  boolean?]
+           [(CurrentlyBodyguarding? #f)  boolean?]
            )
           (#:rule ("calculate HP" #:transform HP (BonusHP Wounds)
                    [(or HP ; only do this if it wasn't set
@@ -101,10 +104,10 @@
                    [(or Dice ; only do this if it wasn't set
                         (ceiling (/ EffectiveXP 1000)))])
            #:rule ("normalize AOE" #:transform AOE (Name AOE)
-                   [(cond
-                      [(false?  AOE) DEFAULT-AOE]
-                      [((</c 1) AOE) DEFAULT-AOE]
-                      [else          AOE])])
+                   [(match (to-num AOE)
+                      [#f          DEFAULT-AOE]
+                      [(? (</c 1)) DEFAULT-AOE]
+                      [else        AOE])])
            #:rule ("normalize ToHit"    #:transform ToHit    (ToHit BonusToHit)
                    [(define to-hit (match ToHit
                                      [#f  (+ DEFAULT-TO-HIT (to-num BonusToHit))]
@@ -182,7 +185,10 @@
 
 ;;----------------------------------------------------------------------
 
-(define (all-names fighters) (string-join (map combatant-Name fighters) ","))
+(define (all-names fighters)
+  (if (null? fighters)
+      "<no fighters given>"
+      (string-join (map combatant-Name fighters) ",")))
 
 ;;----------------------------------------------------------------------
 
@@ -210,7 +216,10 @@
 
 (define/contract (is-alive? fighter)
   (-> combatant? (or/c combatant? #f))
-  (if (> (combatant-HP fighter) (combatant-Wounds fighter))
+  (log-fight-debug "checking is-alive. fighter ~a has HP ~a"
+                   (combatant-Name fighter)
+                   (combatant-HP fighter))
+  (if (> (combatant-HP fighter) 0)
       fighter
       #f))
 
@@ -305,7 +314,8 @@
   (define all-attackers (sort-combatants att))
 
   (log-fight-debug "generating matchups.\n\t all-attackers: ~v\n\t all-defenders: ~v"
-                   all-attackers all-defenders)
+                   (all-names all-attackers)
+                   (all-names all-defenders))
 
   (define matchups
     (for/list ([attacker all-attackers])
@@ -320,38 +330,47 @@
                 all-defenders]
                [else
                 (define shuffled-defenders (shuffle all-defenders))
-                (log-fight-debug "shuffled defenders: ~a" (map combatant-Name shuffled-defenders))
+                (log-fight-debug "shuffled defenders: ~a" (all-names shuffled-defenders))
                 (for/list ([candidate shuffled-defenders]
                            [i         AOE]) ; no more than this many
                   (define candidate-name (combatant-Name candidate))
                   (log-fight-debug "~a is trying to attack ~a" attacker-name candidate-name)
                   (define bodyguards (filter (and/c is-alive?
-                                                    (negate combatant-CurrentlyBodyguarding))
+                                                    (negate combatant-CurrentlyBodyguarding?))
                                              (combatant-BodyguardingMe candidate)))
                   (log-fight-debug "living, not occupied bodyguards for candiate ~a: ~a"
                                    candidate-name
                                    (if (null? bodyguards)
                                        "<none>"
                                        (all-names bodyguards)))
-                  (cond [(null? bodyguards)                   candidate]
+                  (cond [(null? bodyguards)
+                         (log-fight-debug "there were no bodyguards")
+                         candidate]
                         [else (define choice (pick bodyguards))
                               (displayln (format "\t~a wanted to hit ~a but ~a jumped in the way!"
                                                  attacker-name
                                                  candidate-name
                                                  (combatant-Name choice)))
-                              (set-combatant-CurrentlyBodyguarding! choice #t)
+                              (set-combatant-CurrentlyBodyguarding?! choice #t)
                               choice]))])))
-      (log-fight-debug "final matchup for attacker ~v: ~v" attacker defenders)
+      (log-fight-debug "final matchup for attacker ~a: ~a"
+                       (combatant-Name attacker)
+                       (all-names defenders))
       (cons attacker defenders)))
 
   (log-fight-debug "all final matchups:\n ~a"
                    (with-output-to-string
                      (thunk (pretty-print matchups))))
   (for ([next (append att all-defenders)])
-    (set-combatant-CurrentlyBodyguarding! next #f))
+    (set-combatant-CurrentlyBodyguarding?! next #f))
 
-  
-  matchups)
+  (log-fight-debug "combatants should have had CurrentlyBodyguarding? reset.  Ones that have it as #t: ~v" (all-names (filter combatant-CurrentlyBodyguarding? (append att all-defenders))))
+
+  (log-fight-debug "matchups is non-null list? ~a" (list/not-null? matchups))
+  (log-fight-debug "matchups is LoL of lengths? ~a" (map length matchups))
+
+  matchups
+  )
 
 ;;----------------------------------------------------------------------
 
@@ -401,9 +420,9 @@
 
     (for ([attacker  all-attackers]
           [defenders all-defender-groups])
-      (log-fight-debug " attacker ~v\n defenders ~v" attacker defenders)
-
       (define attacker-name (combatant-Name attacker))
+      (log-fight-debug " attacker ~v\n defenders ~v" attacker-name (all-names defenders))
+
       (when (> (length defenders) 1)
         (displayln (format "\t Note: ~a has AoE attacks and is potentially hitting ~a people!"
                            attacker-name
@@ -411,20 +430,19 @@
       (for ([defender defenders])
         (log-fight-debug "defender: ~a" defender)
         (match-define (struct* combatant ([Name   defender-name]
-                                          [Wounds defender-wounds]
                                           [HP     defender-hp]))
           defender)
 
         (define wounds-inflicted (- (generate-hits attacker) (block-hits defender)))
         (cond [(> wounds-inflicted 0)
-               (define total-damage-received  (+ defender-wounds wounds-inflicted))
-               (set-combatant-Wounds! defender total-damage-received)
+               (set-combatant-HP! defender
+                                  (- defender-hp wounds-inflicted))
                (displayln (format "~a hit ~a for ~a damage! ~a is at ~a HP~a"
                                   attacker-name
                                   defender-name
                                   wounds-inflicted
                                   defender-name
-                                  (- defender-hp total-damage-received)
+                                  (combatant-HP defender)
                                   (if (not (is-alive? defender))
                                       ", and will die at end of round."
                                       ".")))
@@ -436,9 +454,8 @@
                                       defender-name
                                       (all-names all-linked))))
                  (for ([linked all-linked])
-                   (set-combatant-Wounds! linked
-                                          (max (combatant-Wounds linked)
-                                               (combatant-HP     linked)))))]
+                   (set-combatant-HP! linked
+                                      (min 0 (combatant-HP linked)))))]
               [else
                (displayln (format "~a failed to hurt ~a..." attacker-name defender-name))])))
     (displayln "\n"))
@@ -519,8 +536,17 @@
           [else
            (displayln (format "\n\tRound ~a, fight!" round#))
 
+           (log-fight-debug "before round #~a, heroes that are alive: ~a"
+                            round#
+                            (all-names (filter is-alive? heroes)))
+
+           (log-fight-debug "before round #~a, villains that are alive: ~a"
+                            round#
+                            (all-names (filter is-alive? villains)))
+
            (fight-one-round (filter is-alive? heroes)
-                            (filter is-alive? villains))
+                            (filter is-alive? villains)
+                            )
            (log-fight-debug "after fight-one-round for round ~a" round#)
 
            ; After every round, combatants are more tired, lower on chakra, etc, and
