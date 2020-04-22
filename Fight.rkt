@@ -209,7 +209,7 @@
 
 (define/contract (is-alive? fighter)
   (-> combatant? (or/c combatant? #f))
-  (if (>= (combatant-HP fighter) (combatant-Wounds fighter))
+  (if (> (combatant-HP fighter) (combatant-Wounds fighter))
       fighter
       #f))
 
