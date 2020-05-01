@@ -142,7 +142,7 @@ BuffWhichAllies -- Either blank or a double-quoted string of comma-separated nam
 Ami,4000,,,,,,,"Kei,Hazou,Noburi,Akane",0.1,0.05,,Kei
 ```
 
-(Note the "" around the names of her allies!)  A person cannot buff themself, so their name will be filtered out of the list. An error will be thrown if there are names in the BuffWhichAllies list that do not refer to a person in the CSV file.
+(Note the "" around the names of her allies!)  A person CAN buff themself. An error will be thrown if there are names in the BuffWhichAllies list that do not refer to a person in the CSV file.
 
 BuffAlliesOffense -- A decimal number < 1, representing the percentage by which to boost allies offensive power.  "BuffAlliesOffense 0.1" means that allies get their ToHit increased by 10%, making them more likely to cause damage.  The boost only applies to the allies named in the BuffWhichAllies field. 
 
