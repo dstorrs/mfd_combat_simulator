@@ -69,8 +69,9 @@
                            (and/c non-empty-string?
                                   (λ (v) (regexp-match #px"[0-9]" v)))))
 
+(define name? non-empty-string?)
 (struct++ combatant
-          ([Name              non-empty-string?  string-trim]
+          ([Name              name?  string-trim]
            [XP                number-like? to-num]
            [BonusXP           number-like? to-num]
            [Wounds            number-like? to-num]
