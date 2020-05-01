@@ -1,28 +1,3 @@
-Name,XP,BonusXP,Wounds,BonusHP,BonusToHit,BonusToDefend,AOE,BuffNextNumAllies,BuffAlliesOffense,BuffAlliesDefense,LinkedTo,BodyguardFor
-Ami,13993,,,,,,,,,,,Kei
-Kei,5785,,,1,,,,,,,,
-Prime,17854,,,,0.15,,,,,,,
-Naruto 01,17854,,1,,0.15,,,,,,Prime,Prime
-Naruto 02,17854,,1,,0.15,,,,,,Prime,Prime
-Naruto 03,17854,,1,,0.15,,,,,,Prime,Prime
-Naruto 04,17854,,1,,0.15,,,,,,Prime,Prime
-Naruto 05,17854,,1,,0.15,,,,,,Prime,Prime
-Naruto 06,17854,,1,,0.15,,,,,,Prime,Kei
-Naruto 07,17854,,1,,0.15,,,,,,Prime,Kei
-Naruto 08,17854,,1,,0.15,,,,,,Prime,Kei
-Naruto 09,17854,,1,,0.15,,,,,,Prime,Kei
-Naruto 10,17854,,1,,0.15,,,,,,Prime,Kei
-Naruto 11,17854,,1,,0.15,,,,,,Prime,Kei
-Naruto 12,17854,,1,,0.15,,,,,,Prime,Ami
-Naruto 13,17854,,1,,0.15,,,,,,Prime,Ami
-Naruto 14,17854,,1,,0.15,,,,,,Prime,Ami
-Naruto 15,17854,,1,,0.15,,,,,,Prime,Jounin A
-Naruto 16,17854,,1,,0.15,,,,,,Prime,Jounin A
-Naruto 17,17854,,1,,0.15,,,,,,Prime,Jounin A
-Naruto 18,17854,,1,,0.15,,,,,,Prime,Jounin B
-Naruto 19,17854,,1,,0.15,,,,,,Prime,Jounin B
-Naruto 20,17854,,1,,0.15,,,,,,Prime,Jounin B
-Jounin A,17378,,,,,,,,,,,
-Jounin B,17378,,,,,,,,,,,
-Pangolin A,8000,,1,,,,,,,,Kei,Kei
-Pangolin B,8000,,1,,,,,,,,Kei,Kei
+Name,XP,BonusXP,Wounds,BonusHP,BonusToHit,BonusToDefend,AOE,BuffWhichAllies,BuffAlliesOffense,BuffAlliesDefense,LinkedTo,BodyguardFor
+Alice,1399,,,,,,,,,,,Bill
+Bill,1399,,,,,,,,,,,

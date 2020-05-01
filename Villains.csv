@@ -1,5 +1,3 @@
-Name,XP,BonusXP,Wounds,BonusHP,BonusToHit,BonusToDefend,AOE,BuffNextNumAllies,BuffAlliesOffense,BuffAlliesDefense,LinkedTo,BodyguardFor
-Conjura,55000,,1,0,0.3,0.3,3,3,0.2,0.1,Summoner,Summoner
-Summoner,30983,-15000,0,0,0.1,0,,2,0.2,0,,
-Mook A,14901,,0,0,0.1,0,,2,0.2,0,,Summoner
-Mook B,14901,,0,1,0.2,0,,1,0.1,0.7,,Summoner
+Name,XP,BonusXP,Wounds,BonusHP,BonusToHit,BonusToDefend,AOE,BuffWhichAllies,BuffAlliesOffense,BuffAlliesDefense,LinkedTo,BodyguardFor
+Charlie,1399,,,,,,,,,,,
+Dan,1399,,,,,,,,,,,
