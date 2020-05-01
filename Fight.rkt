@@ -55,6 +55,12 @@
 (define csv-column-names  (make-parameter '()))
 (define-logger fight)
 
+(define MIN-TO-HIT 0.5)
+(define MAX-TO-HIT 0.99)
+
+(define MIN-TO-DEFEND 0)
+(define MAX-TO-DEFEND 0.90)
+
 ;;----------------------------------------------------------------------
 
 (define (to-num v)
@@ -131,8 +137,8 @@
                                      [#f  (+ DEFAULT-TO-HIT (to-num BonusToHit))]
                                      [(? number?) ToHit]
                                      [_  (+ (to-num ToHit) (to-num BonusToHit))]))
-                    (min 0.99 ; ToHit is always 5% <= x <= 99%
-                         (max 0.05 to-hit))])
+                    (min MAX-TO-HIT
+                         (max MIN-TO-HIT to-hit))])
            #:rule ("normalize ToDefend"    #:transform ToDefend    (ToDefend BonusToDefend)
                    [(define to-defend (match ToDefend
                                         [#f  (+ DEFAULT-TO-DEFEND (to-num BonusToDefend))]
@@ -215,7 +221,7 @@
                                                "ally names" ally-names
                                                "all names"  all-names)))
                     fighters])
-           #:rule ("initialize fighters"
+           #:rule ("update BuffWhichAllies to have combatants (structs), not names (strings)"
                    #:transform fighters (fighters)
                    [(define fighters-by-name (hash-aggregate combatant.Name fighters))
                     (for/list ([f fighters])
@@ -225,7 +231,7 @@
                                                      (sort allies
                                                            string<?
                                                            #:key combatant.Name)))])
-           #:rule ("implement all buffs"
+           #:rule ("update each fighter with buffs from allies"
                    #:transform fighters (fighters)
                    [(define fighters-by-name (hash-aggregate combatant.Name fighters))
                     (for/list ([f fighters])
@@ -235,17 +241,33 @@
                         f)
                       (define allies (hash-slice fighters-by-name (map combatant.Name BuffWhichAllies)))
                       (for ([ally allies])
-                        ; Created an update version of the ally using function update so
-                        ; that rules will run, values be checked, etc
-                        (define updated-ally
-                          (set-combatant-ToDefend
-                           (set-combatant-ToHit ally (+ (combatant.ToHit ally) BuffAlliesOffense))
-                           (+ (combatant.ToDefend ally) BuffAlliesDefense)))
-
-                        ; Now mutationally update the ally so that the changes are seen by other fighters
-                        (set-combatant-ToHit! ally (combatant.ToHit updated-ally))
-                        (set-combatant-ToDefend! ally (combatant.ToDefend updated-ally)))
+                        ; NOTE: This may result in combatants with >99% ToHit or >90%
+                        ; ToDefend, which violates constraints.  That's okay; it will be
+                        ; evened out in the next rule.
+                        (set-combatant-ToHit! ally (+ (combatant.ToHit ally) BuffAlliesOffense))
+                        (set-combatant-ToDefend! ally (+ (combatant.ToDefend ally) BuffAlliesDefense)))
                       f)])
+           #:rule ("give bonus dice if ToHit > max.  cap the ToHit and ToDefend"
+            #:transform fighters (fighters)
+            [(for/list ([fighter fighters])
+               (match-define (struct* combatant ([Dice     Dice]
+                                                 [ToHit    ToHit]
+                                                 [ToDefend ToDefend]))
+                 fighter)
+               (when (> ToHit 1)     ; >100%
+                 ; e.g. 120% ToHit and 10 dice = 99% ToHit and 12 dice
+                 ; e.g. 136% ToHit and 22 dice = 99% ToHit and 29 dice
+                 ; Dice = floor(ToHit * Dice)
+                 (define new-dice (inexact->exact (floor (* ToHit Dice))))
+                 (set-combatant-Dice!  fighter new-dice)
+                 (set-combatant-ToHit! fighter MAX-TO-HIT))
+               (when (< ToHit MIN-TO-HIT)
+                 (set-combatant-ToHit! fighter MIN-TO-HIT))
+
+               (cond
+                 [(>  ToDefend MAX-TO-DEFEND) (set-combatant-ToDefend! fighter MAX-TO-DEFEND)]
+                 [(<  ToDefend MIN-TO-DEFEND) (set-combatant-ToDefend! fighter MIN-TO-DEFEND)])
+               fighter)])
            #:rule ("set bodyguards and linked-tos"
                    #:transform fighters (fighters)
                    [(for/list ([fighter fighters])
