@@ -32,9 +32,11 @@ Additionally, the final state of all combatants will be saved to Heroes-final.cs
 
 ## Command-line Switches
 
+```
 -m, --max-rounds  : Stop after N rounds even if there are still people alive on both sides
 --heroes          : A relative path to a combatants CSV file. Default: ./Heroes.csv" 
 --villains        : A relative path to a combatants CSV file. Default: ./Villains.csv"
+```
 
 You can simulate reinforcements or mid-combat healing by setting it to run for a finite number of rounds, modifying the Heroes-final.csv and Villains-final.csv files, and running it again with the command line arguments "--heroes Heroes-final.csv --villains Villains-final.csv".  In the limiting case, run it for 1 round each time and revise the files as needed.
 
@@ -119,7 +121,7 @@ the CSV files follows:
 
 ### All Headers
 
-Name,XP,BonusXP,Wounds,BonusHP,BonusToHit,BonusToDefend,AOE,BuffNextNumAllies,BuffAlliesOffense,BuffAlliesDefense,LinkedTo,BodyguardFor
+Name,XP,BonusXP,Wounds,BonusHP,BonusToHit,BonusToDefend,AOE,BuffWhichAllies,BuffAlliesOffense,BuffAlliesDefense,LinkedTo,BodyguardFor
 
 
 ### Headers Explained
@@ -140,7 +142,7 @@ BonusToDefend     -- A decimal number.  A value of 0.1 (0.15, etc) means a +10% 
 
 AOE               -- An integer.  This is the number of people that the combatant will attack each round.  Used to simulate AOE attacks or multiple attacks.  If <1 it will be set to 1.
 
-BuffNextNumAllies -- Number of allies below themselves in the list to apply their BuffAlliesOffense and BuffAlliesDefense to.  It's okay if this number is larger than the number of combatants left in the file.
+BuffWhichAllies -- Either blank or a double-quoted string of comma-separated names of people in the file.  Each of those people will receive the buffs specified in 'BuffAlliesOffense' and 'BuffAlliesDefense'.  As an example, assume that Ami's brilliant planning is enough to give a 10% offensive and 5% defensive buff to Kei, Hazou, Noburi, and Akane.  Ami's row in the CSV file might be: Ami,13993,,,,,,,"Kei,Hazou,Noburi,Akane",0.1,0.05,,Kei.  (Note the "" around the names of her allies!)  A person cannot buff themself, so their name will be filtered out of the list. An error will be thrown if there are names in the BuffWhichAllies list that do not refer to a person in the CSV file.
 
 BuffAlliesOffense -- A decimal number < 1, representing the percentage by which to boost allies offensive power.  "BuffAlliesOffense 0.1" means that allies get their ToHit increased by 10%, making them more likely to cause damage.  The boost only applies to the next N combatants below this one, where N is the value of BuffNextNumAllies.
 

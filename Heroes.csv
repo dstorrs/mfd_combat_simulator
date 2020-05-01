@@ -1,3 +1,2 @@
 Name,XP,BonusXP,Wounds,BonusHP,BonusToHit,BonusToDefend,AOE,BuffWhichAllies,BuffAlliesOffense,BuffAlliesDefense,LinkedTo,BodyguardFor
-Alice,1399,,,,,,,,,,,Bill
-Bill,1399,,,,,,,,,,,
+Alice,1400,,,,,,,,0.52,0.52,,
