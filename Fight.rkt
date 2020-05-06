@@ -129,25 +129,20 @@
            [(OffenseDice #f)            exact-positive-integer?]
            [(DefenseDice #f)            exact-positive-integer?]
            [(HP #f)                     integer?])
-          (#:rule ("calc TotalXP"
+          (
+           #:rule ("calc TotalXP"
                    #:transform TotalXP  (TotalXP XP BonusXP) [(or TotalXP (+ (to-num XP) (to-num BonusXP)))])
            #:rule ("calc HP"
                    #:transform HP       (HP BonusHP) [(or HP (+ DEFAULT-HP (to-num BonusHP)))])
            #:rule ("calc ToHit"
                    #:transform ToHit    (ToHit BonusToHit)
-                   [(clip-to-range
-                     (or ToHit
+                   [(or ToHit
                          (+ (to-num BonusToHit)
-                            DEFAULT-TO-HIT))
-                     MIN-TO-HIT
-                     MAX-TO-HIT)])
+                            DEFAULT-TO-HIT))])
            #:rule ("calc ToDefend"
                    #:transform ToDefend (ToDefend BonusToDefend)
-                   [(clip-to-range
-                     (or ToDefend
-                         (+ (to-num BonusToDefend) DEFAULT-TO-DEFEND))
-                     MIN-TO-DEFEND
-                     MAX-TO-DEFEND)])
+                   [(or ToDefend
+                        (+ (to-num BonusToDefend) DEFAULT-TO-DEFEND))])
            #:rule ("calc OffenseDice"
                    #:transform OffenseDice (OffenseDice TotalXP)
                    [(or OffenseDice (inexact->exact (ceiling (/ TotalXP 1000))))])
@@ -195,6 +190,11 @@
                                             ","))
                              (log-fight-debug "in combatant stats dump, data is: ~v" data)
                              data)))
+           #:convert-for (refresh
+                          (#:include '(Name XP BonusXP BonusHP BonusToHit BonusToDefend
+                                            AOE BodyguardFor LinkedTo Buffs HP)
+                           #:post (λ (h) (hash->struct/kw combatant++ h))))
+
            #:convert-for (report-string
                           (#:post (λ (h)
                                     (log-fight-debug "in convert-for report-string, hash is: ~v" h)
@@ -210,7 +210,7 @@
                                                               ('LinkedTo     linked-to)
                                                               )
                                       h)
-                                    (format "~a:\tHP(~a), OffenseDice(~a), DefenseDice(~a), ToHit(~a%), ToDefend(~a%), AOE (~a), Total XP (~a), Bodyguarding: ~a, Linked to: ~a"
+                                    (format "~a:\tHP(~a), OffenseDice(~a), DefenseDice(~a), ToHit(~a%), ToDefend(~a%), AOE(~a), Total XP(~a), Bodyguarding: ~a, Linked to: ~a"
                                             name hp
                                             offense-dice defense-dice
                                             (real->decimal-string (* 100 to-hit)    1)
@@ -266,42 +266,60 @@
                              [all-buffs
                               ;; okay, we have some buffs.
 
-                              ;; make a lookup table of name to combatant so it's easy to
-                              ;; retrieve them
-                              ;(log-fight-debug "about to make fighters-by-name. fighters are: ~v" fighters)
-                              (define fighters-by-name (hash-aggregate combatant.Name
-                                                                       fighters))
-                              ;(log-fight-debug "fighters-by-name: ~v" fighters-by-name)
-                              ;; final result is going to be the updated combatants, which
-                              ;; are the values of the fighters-by-name hash
-                              (hash-values
-                               ;; map over all buffs
-                               (for/fold ([fighters-by-name fighters-by-name])
-                                         ([next-buff all-buffs])
-                                 (match-define (struct* buff
-                                                        ([BuffWho     recipient-names]
-                                                         [BuffOffense offense-buff]
-                                                         [BuffDefense defense-buff]))
-                                   next-buff)
-                                 ;; map over the recipients, giving them the buff
-                                 (for/fold ([fighters-by-name fighters-by-name])
-                                           ([fighter (filter (negate false?)
-                                                             (hash-slice fighters-by-name recipient-names #f))])
-                                   (match-define (struct* combatant ([ToHit    ToHit]
-                                                                     [ToDefend ToDefend]))
-                                     fighter)
-                                   ; If a buff refers to someone not in the list of
-                                   ; fighters, ignore it.  This could happen when
-                                   ; `fight-one-round` updates the team with the living
-                                   ; fighters without bothering to update all the buffs
-                                   (define name (combatant.Name fighter))
-                                   (if (hash-has-key? fighters-by-name name)
-                                       (hash-set fighters-by-name
-                                                 name
-                                                 (let* ([result (set-combatant-ToHit    fighter (+ ToHit    offense-buff))]
-                                                        [result (set-combatant-ToDefend fighter (+ ToDefend defense-buff))])
-                                                   result))
-                                       fighters-by-name))))])])])
+                              ;; Make a lookup of fighter-name -> all relevant buffs
+                              (define name->buffs
+                                (apply (curry hash-union
+                                              #:combine (compose1 (curryr remove-duplicates
+                                                                          eq?)
+                                                                  append))
+                                       (for/fold ([result '()])
+                                                 ([b all-buffs])
+                                         (cons (for/hash ([who (buff.BuffWho b)])
+                                                 (values who (list b)))
+                                               result))))
+                              (log-fight-debug "name->buffs: ~v"
+                                               name->buffs)
+
+                              (define updated-fighters
+                                (for/list ([fighter fighters])
+                                  (match-define (struct* combatant ([Name     fighter-name]
+                                                                    [ToHit    current-2hit]
+                                                                    [ToDefend current-2def]))
+                                    fighter)
+                                  (define relevant-buffs (hash-ref name->buffs
+                                                                   fighter-name
+                                                                   '()))
+                                  (log-fight-debug "fighter: ~v has buffs: ~v"
+                                                   fighter-name
+                                                   relevant-buffs)
+                                  (match relevant-buffs
+                                    ['()
+                                     (log-fight-debug "matched no buffs")
+                                     fighter]
+                                    [(list (struct* buff ([BuffOffense off]
+                                                          [BuffDefense def])) ...)
+                                     (log-fight-debug "matched buffs.  off: ~v , def: ~v"
+                                                      off def)
+                                     (log-fight-debug "before boost, ~a hash off/def: ~a/~a"
+                                                      fighter-name
+                                                      (combatant.ToHit fighter)
+                                                      (combatant.ToDefend fighter))
+                                     (define offense (cons current-2hit off))
+                                     (define defense (cons current-2def def))
+                                     (let* ([fighter (set-combatant-ToHit fighter
+                                                                          (apply + offense))]
+                                            [fighter (set-combatant-ToDefend fighter
+                                                                             (apply + defense))])
+                                       (log-fight-debug "after boost, ~a hash off/def: ~a/~a"
+                                                        fighter-name
+                                                        (combatant.ToHit fighter)
+                                                        (combatant.ToDefend fighter))
+                                       fighter)])))
+                              (log-fight-debug  "updated fighters: ~a"
+                                                (with-output-to-string
+                                                  (thunk (pretty-display
+                                                          updated-fighters))))
+                              updated-fighters])])])
            #:rule ("clip ToHit/ToDefend and award bonus dice as appropriate"
                    #:transform fighters (fighters apply-buffs?)
                    [;(log-fight-debug "entering bonus-dice, fighters is: ~v" fighters)
@@ -513,27 +531,27 @@
     (define num-defenders (combatant.AOE attacker))
     (define defender-names
       (for/list ([i        num-defenders])
-                             (define defender (pick defenders))
-                             (log-fight-debug "chose defender: ~v" defender)
+        (define defender (pick defenders))
+        (log-fight-debug "chose defender: ~v" defender)
 
-                             ;; If someone is being bodyguarded then we'll substitute a
-                             ;; bodyguard IFF the bodyguard is actually still alive and on
-                             ;; the team instead of a leftover artifact who was killed in
-                             ;; an earlier round.
-                             (match (set-intersect (combatant.Bodyguarding-Me defender)
-                                                   (map combatant.Name defenders))
-                               ['() (combatant.Name defender)]
-                               [bodyguards
-                                ; Bodyguards are allowed to block more than one attack per
-                                ; turn so it's okay if we end up picking the same one
-                                ; multiple times.
-                                (define bodyguard (pick bodyguards))
-                                ;(log-fight-debug "chose bodyguard: ~a" (combatant.Name bodyguard))
-                                (displayln (format "NOTE: ~a tried to attack ~a, but ~a jumped in the way!"
-                                                   (combatant.Name attacker)
-                                                   (combatant.Name defender)
-                                                   bodyguard))
-                                bodyguard])))
+        ;; If someone is being bodyguarded then we'll substitute a
+        ;; bodyguard IFF the bodyguard is actually still alive and on
+        ;; the team instead of a leftover artifact who was killed in
+        ;; an earlier round.
+        (match (set-intersect (combatant.Bodyguarding-Me defender)
+                              (map combatant.Name defenders))
+          ['() (combatant.Name defender)]
+          [bodyguards
+           ; Bodyguards are allowed to block more than one attack per
+           ; turn so it's okay if we end up picking the same one
+           ; multiple times.
+           (define bodyguard (pick bodyguards))
+           ;(log-fight-debug "chose bodyguard: ~a" (combatant.Name bodyguard))
+           (displayln (format "NOTE: ~a tried to attack ~a, but ~a jumped in the way!"
+                              (combatant.Name attacker)
+                              (combatant.Name defender)
+                              bodyguard))
+           bodyguard])))
     (matchup++ #:attacker  (combatant.Name attacker)
                #:defenders defender-names)))
 
@@ -609,7 +627,7 @@
 
       (define matchups (generate-matchups attacking-team defending-team))
       (displayln "")
-      
+
       ;; Notes:  defender-name-groups is a LoL, usually with only one item in the inner list
       ;;
       ;; Multiple attackers can attack the same target
@@ -682,18 +700,18 @@
 
       (define final-defenders-hash
         (for/hash ([(name fighter) (in-hash surviving-defenders-hash)])
-         (values name
-                 (let* ([fighter
-                         (set-combatant-Bodyguarding-Me
-                          fighter
-                          (set-subtract (combatant.Bodyguarding-Me fighter)
-                                        names-killed))]
-                        [fighter
-                         (set-combatant-Linked-to-Me
-                          fighter
-                          (set-subtract (combatant.Linked-to-Me fighter)
-                                        names-killed))])
-                   fighter))))
+          (values name
+                  (let* ([fighter
+                          (set-combatant-Bodyguarding-Me
+                           fighter
+                           (set-subtract (combatant.Bodyguarding-Me fighter)
+                                         names-killed))]
+                         [fighter
+                          (set-combatant-Linked-to-Me
+                           fighter
+                           (set-subtract (combatant.Linked-to-Me fighter)
+                                         names-killed))])
+                    fighter))))
 
 
 
@@ -703,21 +721,25 @@
       ;; After each round we reduce ToDefend by EXHAUSTION-PENALTY.  This ensures that the
       ;; fight will still eventually end even if everyone starts off with super high
       ;; ToDefend scores that render them untouchable.
+      (define (rebuild-fighters survivors)
+        (for/list ([fighter (hash-values survivors)])
+          (define start-val (combatant.ToDefend fighter))
+          (make-more-tired (set-combatant-ToDefend (combatant/convert->refresh fighter)
+                                                   start-val))))
+      
       (match is-second-half?
         [#f (log-fight-debug "going into second half of fight-one-round")
             (displayln "")
             (loop     defending-team ; villains become attackers
                       attacking-team ; heroes   become defenders
                       (team++ #:csv-headers  (team.csv-headers defending-team)
-                              #:apply-buffs? #f
-                              #:fighters     (map make-more-tired
-                                                  (hash-values surviving-defenders-hash)))
+                              #:apply-buffs? #t
+                              #:fighters     (rebuild-fighters surviving-defenders-hash))
                       #t)]
         [#t (log-fight-debug "leaving let loop in fight-one-round")
             (values (team++ #:csv-headers  (team.csv-headers defending-team)
-                            #:apply-buffs? #f
-                            #:fighters     (map make-more-tired
-                                                (hash-values surviving-defenders-hash)))
+                            #:apply-buffs? #t
+                            #:fighters     (rebuild-fighters surviving-defenders-hash))
                     first-half-results)])))
 
   (log-fight-debug "leaving fight-one-round")
@@ -809,6 +831,7 @@
 
   (displayln "At start of battle, the sides are:\n")
   (show-sides heroes-team villains-team)
+
 
   (let loop ([heroes-team   heroes-team]
              [villains-team villains-team]
