@@ -24,7 +24,7 @@
 (define DEFAULT-HP          2)    ; default points of damage a combatant can take. die at 0
 (define DEFAULT-TO-HIT      0.3)  ; 30% chance for each die to cause a point of damage
 (define DEFAULT-TO-DEFEND   0.3)  ; 30% chance for each die to deflect a point of damage
-(define EXHAUSTION-PENALTY  0.1)  ; after every round, reduce everyone's ToDefend this much
+(define EXHAUSTION-PENALTY  0.05)  ; after every round, reduce everyone's ToDefend this much
 
 ;   These are here for reference so you can see what the original
 ;   values were if you modify this code in DrRacket.
@@ -111,13 +111,13 @@
            [BonusToHit                  number-like? to-num]
            [BonusToDefend               number-like? to-num]
            [AOE                         number-like? (curryr to-num 1)]
-           [LinkedTo                    (or/c string? combatant?)]
-           [BodyguardFor                (or/c string? combatant?)]
+           [LinkedTo                    string?]
+           [BodyguardFor                string?]
            [(Buffs '())                 (listof buff?)]
            ;
            ; private fields
-           [(Linked-to-Me '())          (or/c combatant? (listof combatant?)) autobox]
-           [(Bodyguarding-Me '())       (or/c combatant? (listof combatant?)) autobox]
+           [(Linked-to-Me '())          (listof name?)]
+           [(Bodyguarding-Me '())       (listof name?)]
            [(TotalXP #f)                exact-positive-integer?]
            [(ToHit   #f)                real?]
            [(ToDefend   #f)             real?]
@@ -237,7 +237,7 @@
 (struct++ team
           ([fighters              (listof living-combatant/c)]
            [csv-headers           (non-empty-listof string?)]
-           [(apply-buffs? #t)     boolean?]
+           [apply-buffs?          boolean?]
            [(fighters-by-name #f) (hash/c name? combatant?)]
            )
           (#:rule ("apply ally buffs"
@@ -316,25 +316,38 @@
                                                                      (max MIN-TO-DEFEND
                                                                           (min ToDefend MAX-TO-DEFEND)))])
                                fighter))])])
-           #:rule ("set bodyguards and linked-tos"
+           #:rule ("set bodyguarding-me and linked-to-me"
                    #:transform fighters (fighters)
                    [(log-fight-debug "entering set bodyguards, fighters is: ~v" fighters)
                     (cond [(null? fighters) fighters]
                           [else
-                           (define bodyguards  (hash-aggregate combatant.BodyguardFor fighters))
-                           (define linked-to   (hash-aggregate combatant.LinkedTo     fighters))
-                           (sort-str
-                            #:key combatant.Name
-                            (hash-values
-                             (for/fold ([by-name (hash-aggregate combatant.Name fighters)])
-                                       ([fighter fighters])
-                               (define name (combatant.Name fighter))
-                               (hash-set by-name
-                                         name
-                                         (set-combatant-Bodyguarding-Me
-                                          (set-combatant-Linked-to-Me fighter
-                                                                      (hash-ref bodyguards name '()))
-                                          (hash-ref bodyguards name '()))))))])])
+                           (define bodyguards   (hash-aggregate combatant.BodyguardFor fighters))
+                           (define linked-to    (hash-aggregate combatant.LinkedTo     fighters))
+                           ;; bodyguards and linked-to are (hash/c name? (listof combatant?))
+                           ;; where the combatants are the people bodyguarding/linked-to that name
+                           (let* ([result
+                                   (begin
+                                     (log-fight-debug "in team++, set bodyguards, first 'result' clause, fighters is: ~v"
+                                                      fighters)
+                                     (for/list ([fighter fighters])
+                                       (log-fight-debug "fighter is: ~v" fighter)
+                                       (define name (combatant.Name fighter))
+                                       (if (hash-has-key? bodyguards name)
+                                           (set-combatant-Bodyguarding-Me fighter (map combatant.Name
+                                                                                       (autobox (hash-ref bodyguards name))))
+                                           fighter)))]
+                                  [result
+                                   (begin
+                                     (log-fight-debug "in team++, set bodyguards, second 'result' clause, result is: ~v"
+                                                      result)
+                                     (for/list ([fighter result])
+                                       (log-fight-debug "fighter is: ~v" fighter)
+                                       (define name (combatant.Name fighter))
+                                       (if (hash-has-key? linked-to name)
+                                           (set-combatant-Linked-to-Me fighter (map combatant.Name
+                                                                                    (autobox (hash-ref linked-to name))))
+                                           fighter)))])
+                             result)])])
            #:rule ("sort fighters by name"
                    #:transform fighters (fighters)
                    [(sort-str #:key combatant.Name fighters)])
@@ -370,7 +383,7 @@
 (define/contract (show-sides heroes villains)
   (-> team? team? (values team? team?))
 
-  (for ([label '("\nHeroes:\n" "\nVillains:\n")]
+  (for ([label '("Heroes:\n-------" "\nVillains:\n--------")]
         [the-team (list heroes villains)])
     (displayln label)
     (if (null?  (team.fighters the-team))
@@ -402,6 +415,7 @@
   (define-values (buff-field-names fields) (partition-csv-headers headers))
   (define num-fields (length fields))
   (team++ #:csv-headers headers
+          #:apply-buffs? #t
           #:fighters (for/list ([row (cdr rows)])
                        (log-fight-debug "fields are: ~v" fields)
                        (log-fight-debug "row is: ~v" row)
@@ -478,17 +492,21 @@
                    (team.fighters attack-team)
                    (team.fighters defend-team))
 
-  ; using in-cycle on a shuffled list gives us fewer repeats then using `pick` to choose
-  ; random elements
-  (define defenders  (in-cycle (shuffle (team.fighters defend-team))))
+  (define defenders  (team.fighters defend-team))
   (for/list ([attacker (team.fighters attack-team)])
     (log-fight-debug "attacker : ~a" (combatant.Name attacker))
     (define num-defenders (combatant.AOE attacker))
     (matchup++ #:attacker  (combatant.Name attacker)
-               #:defenders (for/list ([i        num-defenders]
-                                      [defender defenders])
-                             (log-fight-debug "chose defender: ~a" (combatant.Name defender))
-                             (match (combatant.Bodyguarding-Me defender)
+               #:defenders (for/list ([i        num-defenders])
+                             (define defender (pick defenders))
+                             (log-fight-debug "chose defender: ~v" defender)
+
+                             ;; If someone is being bodyguarded then we'll substitute a
+                             ;; bodyguard IFF the bodyguard is actually still alive and on
+                             ;; the team instead of a leftover artifact who was killed in
+                             ;; an earlier round.
+                             (match (set-intersect (combatant.Bodyguarding-Me defender)
+                                                   (map combatant.Name defenders))
                                ['() (combatant.Name defender)]
                                [bodyguards
                                 ; Bodyguards are allowed to block more than one attack per
@@ -499,8 +517,8 @@
                                 (displayln (format "~a tried to attack ~a, but ~a jumped in the way!"
                                                    (combatant.Name attacker)
                                                    (combatant.Name defender)
-                                                   (combatant.Name bodyguard)))
-                                (combatant.Name bodyguard)])))))
+                                                   bodyguard))
+                                bodyguard])))))
 
 ;;----------------------------------------------------------------------
 
@@ -536,6 +554,27 @@
 
 ;;----------------------------------------------------------------------
 
+(define/contract (handle-one-attack attacker defender)
+  (-> combatant? combatant? combatant?)
+  (define attacker-name (combatant.Name attacker))
+  (define defender-name (combatant.Name defender))
+
+  (define damage-dealt (- (generate-hits attacker)
+                          (block-hits    defender)))
+  (match damage-dealt
+    [(? positive?)
+     (displayln (format "~a hit ~a for ~a points of damage!"
+                        attacker-name defender-name damage-dealt))
+     (set-combatant-HP defender (- (combatant.HP defender)
+                                   damage-dealt))
+     ]
+    [_ (displayln (format "~a swung at ~a and missed!"
+                          attacker-name
+                          defender-name))
+       defender]))
+
+;;----------------------------------------------------------------------
+
 (define/contract (fight-one-round h-team v-team)
   (-> team? team? (values team? team?))
 
@@ -551,11 +590,7 @@
                [first-half-results     #f]
                [is-second-half?        #f])
 
-      (match-define (list (struct* matchup
-                                   ([attacker  attacker-names]
-                                    [defenders defender-name-groups]))
-                          ...)
-        (generate-matchups attacking-team defending-team))
+      (define matchups (generate-matchups attacking-team defending-team))
 
       ;; Notes:  defender-name-groups is a LoL, usually with only one item in the inner list
       ;;
@@ -564,32 +599,50 @@
       ;; e.g. attacker-names:       '("Alice" "Bill" "Charlie")
       ;; e.g. defender-name-groups: '(("Enemy1" "Enemy2" "Enemy3") ("Enemy2") ("Enemy9"))
       ;;
-      (define attackers
-        (hash-slice (hash-aggregate combatant.Name (team.fighters attacking-team))
-                    attacker-names))
+      (define all-attackers-by-name (team.fighters-by-name attacking-team))
+      (define all-defenders-by-name (team.fighters-by-name defending-team))
 
-      (define defender-map
-        (for/fold ([defender-map    (hash-aggregate combatant.Name
-                                                    (team.fighters defending-team))])
-                  ([attacker        attackers]
-                   [attacker-name   attacker-names]
-                   [defender-names  defender-name-groups])
+      (define surviving-defenders-hash
+        (for/fold ([survivors        all-defenders-by-name])
+                  ([current-matchup  matchups])
 
-          (define defenders (hash-slice defender-map defender-names))
-          (hash-meld defender-map
-                     (for/hash  ([defender      defenders]
-                                 [defender-name defender-names])
-                       (define damage-dealt (- (generate-hits attacker) (block-hits defender)))
-                       (values defender-name
-                               (match damage-dealt
-                                 [(? positive?)
-                                  (displayln (format "~a hit ~a for ~a points of damage!"
-                                                     attacker-name defender-name damage-dealt))
-                                  (set-combatant-HP defender (- (combatant.HP defender)
-                                                                damage-dealt))
-                                  ]
-                                 [_ (displayln (format "~a swung at ~a and missed!" attacker-name defender-name))
-                                    defender]))))))
+          (match-define (struct* matchup ([attacker attacker-name] [defenders defender-names]))
+            current-matchup)
+          (define attacking-combatant  (hash-ref   all-attackers-by-name attacker-name))
+          (define defending-combatants (filter-not false?
+                                                   (hash-slice survivors
+                                                               defender-names
+                                                               #f)))
+          (cond [(null? defending-combatants) survivors]
+                [else
+                 (for/fold ([survivors           survivors])
+                           ([defending-combatant defending-combatants])
+
+                   (define updated-defender
+                     (handle-one-attack attacking-combatant
+                                        defending-combatant))
+                   (cond [(is-alive? updated-defender)
+                          (hash-set survivors
+                                    (combatant.Name updated-defender)
+                                    updated-defender)]
+                         [else
+                          (let kill-linked ([survivors survivors]
+                                            [linked-names (cons (combatant.Name updated-defender)
+                                                                (combatant.Linked-to-Me updated-defender))])
+                            (define updated-survivors (safe-hash-remove survivors linked-names))
+                            (match updated-survivors
+                              [(hash-table) updated-survivors]
+                              [(? hash?)
+                               #:when (equal? (hash-keys updated-survivors) (hash-keys survivors))
+                               updated-survivors]
+                              [else
+                               (kill-linked updated-survivors
+                                            (flatten
+                                             (map combatant.Linked-to-Me
+                                                  (filter combatant?
+                                                          (hash-slice all-defenders-by-name
+                                                                      linked-names
+                                                                      #f)))))]))]))])))
 
       ;; The heroes attack first / defend second, so they will be defender-map when the
       ;; round ends.  Therefore, defenders get returned in first position at the end.
@@ -598,12 +651,6 @@
       ;; fight will still eventually end even if everyone starts off with super high
       ;; ToDefend scores that render them untouchable.
       (match is-second-half?
-        [#t (log-fight-debug "leaving let loop in fight-one-round")
-            (values (team++ #:csv-headers  (team.csv-headers defending-team)
-                            #:apply-buffs? #f
-                            #:fighters     (map make-more-tired
-                                                (filter is-alive? (hash-values defender-map))))
-                    first-half-results)]
         [#f (log-fight-debug "going into second half of fight-one-round")
             (displayln "")
             (loop     defending-team ; villains become attackers
@@ -611,8 +658,14 @@
                       (team++ #:csv-headers  (team.csv-headers defending-team)
                               #:apply-buffs? #f
                               #:fighters     (map make-more-tired
-                                                  (filter is-alive? (hash-values defender-map))))
-                      #t)])))
+                                                  (hash-values surviving-defenders-hash)))
+                      #t)]
+        [#t (log-fight-debug "leaving let loop in fight-one-round")
+            (values (team++ #:csv-headers  (team.csv-headers defending-team)
+                            #:apply-buffs? #f
+                            #:fighters     (map make-more-tired
+                                                (hash-values surviving-defenders-hash)))
+                    first-half-results)])))
 
   (log-fight-debug "leaving fight-one-round")
   (displayln "\n Round ends.  Survivors are:\n\n")
