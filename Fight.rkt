@@ -240,7 +240,20 @@
            [apply-buffs?          boolean?]
            [(fighters-by-name #f) (hash/c name? combatant?)]
            )
-          (#:rule ("apply ally buffs"
+          (#:rule ("remove invalid LinkedTo and Bodyguard entries"
+                   #:transform fighters (fighters)
+                   [(define all-fighters-by-name (hash-aggregate combatant.Name fighters))
+                    (for/list ([fighter fighters])
+                      (let* ([bodyguard-for (combatant.BodyguardFor fighter)]
+                             [linked-to     (combatant.LinkedTo     fighter)]
+                             [fighter       (if (hash-has-key? all-fighters-by-name bodyguard-for)
+                                                fighter
+                                                (set-combatant-BodyguardFor fighter ""))]
+                             [fighter       (if (hash-has-key? all-fighters-by-name linked-to)
+                                                fighter
+                                                (set-combatant-LinkedTo fighter ""))])
+                        fighter))])
+           #:rule ("apply ally buffs"
                    #:transform fighters (fighters apply-buffs?)
                    [;(log-fight-debug "entering apply-all-buffs, fighters is: ~v" fighters)
                     (cond [(or (not apply-buffs?) (null? fighters))
@@ -626,23 +639,55 @@
                                     (combatant.Name updated-defender)
                                     updated-defender)]
                          [else
-                          (let kill-linked ([survivors survivors]
-                                            [linked-names (cons (combatant.Name updated-defender)
-                                                                (combatant.Linked-to-Me updated-defender))])
-                            (define updated-survivors (safe-hash-remove survivors linked-names))
+                          (define def-name  (combatant.Name updated-defender))
+                          (define links
+                            (set-intersect (combatant.Linked-to-Me updated-defender)
+                                           (hash-keys survivors)))
+                          (when (not (null? links))
+                            (displayln (format "~a was killed and had combatants linked to them.  Killing those combatants and anyone recursively linked to them."
+                                               def-name)))
+                          (let kill-linked ([survivors    survivors]
+                                            [linked-names (cons def-name links)])
+                            (define updated-survivors (safe-hash-remove survivors
+                                                                        linked-names))
                             (match updated-survivors
-                              [(hash-table) updated-survivors]
+                              [(hash-table)
+                               updated-survivors]
                               [(? hash?)
-                               #:when (equal? (hash-keys updated-survivors) (hash-keys survivors))
+                               #:when (equal? (hash-keys updated-survivors)
+                                              (hash-keys survivors))
                                updated-survivors]
                               [else
                                (kill-linked updated-survivors
-                                            (flatten
-                                             (map combatant.Linked-to-Me
-                                                  (filter combatant?
-                                                          (hash-slice all-defenders-by-name
-                                                                      linked-names
-                                                                      #f)))))]))]))])))
+                                            (remove-duplicates
+                                             (flatten
+                                              (map combatant.Linked-to-Me
+                                                   (filter combatant?
+                                                           (hash-slice all-defenders-by-name
+                                                                       linked-names
+                                                                       #f))))))]))]))])))
+      (define names-killed (set-subtract (hash-keys all-defenders-by-name)
+                                         (hash-keys surviving-defenders-hash)))
+      (when (not (null? names-killed))
+        (displayln (format "\tkilled: ~a"
+                           (string-join (sort-str names-killed) ", "))))
+
+      (define final-defenders-hash
+        (for/hash ([(name fighter) (in-hash surviving-defenders-hash)])
+         (values name
+                 (let* ([fighter
+                         (set-combatant-Bodyguarding-Me
+                          fighter
+                          (set-subtract (combatant.Bodyguarding-Me fighter)
+                                        names-killed))]
+                        [fighter
+                         (set-combatant-Linked-to-Me
+                          fighter
+                          (set-subtract (combatant.Linked-to-Me fighter)
+                                        names-killed))])
+                   fighter))))
+
+
 
       ;; The heroes attack first / defend second, so they will be defender-map when the
       ;; round ends.  Therefore, defenders get returned in first position at the end.
