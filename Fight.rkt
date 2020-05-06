@@ -511,8 +511,8 @@
   (for/list ([attacker (team.fighters attack-team)])
     (log-fight-debug "attacker : ~a" (combatant.Name attacker))
     (define num-defenders (combatant.AOE attacker))
-    (matchup++ #:attacker  (combatant.Name attacker)
-               #:defenders (for/list ([i        num-defenders])
+    (define defender-names
+      (for/list ([i        num-defenders])
                              (define defender (pick defenders))
                              (log-fight-debug "chose defender: ~v" defender)
 
@@ -533,7 +533,9 @@
                                                    (combatant.Name attacker)
                                                    (combatant.Name defender)
                                                    bodyguard))
-                                bodyguard])))))
+                                bodyguard])))
+    (matchup++ #:attacker  (combatant.Name attacker)
+               #:defenders defender-names)))
 
 ;;----------------------------------------------------------------------
 
