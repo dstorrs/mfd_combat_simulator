@@ -529,7 +529,7 @@
                                 ; multiple times.
                                 (define bodyguard (pick bodyguards))
                                 ;(log-fight-debug "chose bodyguard: ~a" (combatant.Name bodyguard))
-                                (displayln (format "~a tried to attack ~a, but ~a jumped in the way!"
+                                (displayln (format "NOTE: ~a tried to attack ~a, but ~a jumped in the way!"
                                                    (combatant.Name attacker)
                                                    (combatant.Name defender)
                                                    bodyguard))
@@ -606,7 +606,8 @@
                [is-second-half?        #f])
 
       (define matchups (generate-matchups attacking-team defending-team))
-
+      (displayln "")
+      
       ;; Notes:  defender-name-groups is a LoL, usually with only one item in the inner list
       ;;
       ;; Multiple attackers can attack the same target
@@ -670,9 +671,12 @@
                                                                        #f))))))]))]))])))
       (define names-killed (set-subtract (hash-keys all-defenders-by-name)
                                          (hash-keys surviving-defenders-hash)))
-      (when (not (null? names-killed))
-        (displayln (format "\tkilled: ~a"
-                           (string-join (sort-str names-killed) ", "))))
+      (match names-killed
+        ['()
+         (displayln (format "\tKilled:  <no one>"))]
+        [else
+         (displayln (format "\tKilled: ~a"
+                            (string-join (sort-str names-killed) ", ")))])
 
       (define final-defenders-hash
         (for/hash ([(name fighter) (in-hash surviving-defenders-hash)])
@@ -725,7 +729,7 @@
 
   (define heroes-final-path   (path->string     (build-path 'same "Heroes-final.csv")))
   (define villains-final-path (path->string     (build-path 'same "Villains-final.csv")))
-  (displayln (format "\n\nDumping the final state of all combatants to ~a and ~a"
+  (displayln (format "\nDumping the final state of all combatants to ~a and ~a"
                      heroes-final-path
                      villains-final-path))
   (with-output-to-file
@@ -851,7 +855,7 @@
       [("--villains") vf "A relative path to a combatants CSV file. Default: ./Villains.csv" (villains-filepath (build-path 'same vf))]
       )
      (run)
-     (displayln (format "\n\n\t NOTE: Output was saved to '~a'" (path->string logfilepath)))
+     (displayln (format "\n\t NOTE: Output was saved to '~a'" (path->string logfilepath)))
      ))
 
   ; display the log file to STDOUT
