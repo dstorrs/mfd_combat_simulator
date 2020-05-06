@@ -111,13 +111,13 @@
            [BonusToHit                  number-like? to-num]
            [BonusToDefend               number-like? to-num]
            [AOE                         number-like? (curryr to-num 1)]
-           [LinkedTo                    string?]
            [BodyguardFor                string?]
+           [LinkedTo                    string?]
            [(Buffs '())                 (listof buff?)]
            ;
            ; private fields
-           [(Linked-to-Me '())          (listof name?)]
            [(Bodyguarding-Me '())       (listof name?)]
+           [(Linked-to-Me '())          (listof name?)]
            [(TotalXP #f)                exact-positive-integer?]
            [(ToHit   #f)                real?]
            [(ToDefend   #f)             real?]
