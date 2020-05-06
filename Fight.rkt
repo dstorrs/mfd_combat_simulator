@@ -84,6 +84,11 @@
                                   (λ (v) (regexp-match #px"[0-9]" v)))))
 
 (define name? non-empty-string?)
+(struct++ matchup ([attacker name?]
+                   [defenders (listof name?)])
+          #:transparent)
+
+
 (struct++ buff
           ([BuffName name?]    ; e.g. "teamwork" or "defend the log jutsu"
            [BuffWho      (or/c string? (listof string?))
@@ -229,9 +234,6 @@
   (if (> (combatant.HP fighter) 0)
       fighter
       #f))
-
-
-(struct++ matchup ([attacker name?] [defenders (listof name?)]) #:transparent)
 
 (define living-combatant/c (and/c combatant? is-alive?))
 (struct++ team
