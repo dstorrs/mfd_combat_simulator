@@ -7,6 +7,9 @@
 (villains-filepath (build-path 'same "test-villains.csv"))
 (define-values (heroes-rows villains-rows) (get-csv-data))
 
+(define (make-heroes)   (make-combatants heroes-rows))
+(define (make-villains) (make-combatants villains-rows))
+
 ;; (define-values (headers buff-field-names fields num-fields)
 ;;   (parse-csv-data heroes-rows))
 ;; (define kei-row (third heroes-rows))
@@ -120,18 +123,18 @@
 
  (is (make-combatants villains-rows)
      '#s(team (#s(combatant "Conjura" 55000 0 -1 0.3 0.3 3 "Summoner" "Summoner"
-                       ()
-                       () () 55000 0.8999999999999999 0.8 55 55 55 1)
-          #s(combatant "Mook A" 14901 0 0 0.1 0 1 "Summoner" ""
-                       (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1)
-                        #s(buff "Jutsu 1" ("Conjura" "Mook A" "Mook B" "Summoner") 0.3 0.2))
-                       () () 14901 0.8999999999999999 0.7 15 15 15 2)
-          #s(combatant "Summoner" 30983 -15000 0 0.1 0 1 "" ""
-                       (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1))
-                       ("Mook A" "Conjura") ("Conjura") 15983 0.8999999999999999 0.7 16 16 16 2))
-         ("Name" "XP" "BonusXP" "BonusHP" "BonusToHit" "BonusToDefend" "AOE" "BodyguardFor" "LinkedTo" "BuffName" "BuffWho" "BuffOffense" "BuffDefense" "BuffName" "BuffWho" "BuffOffense" "BuffDefense")
-         #t
-         #hash(("Conjura" . #s(combatant "Conjura" 55000 0 -1 0.3 0.3 3 "Summoner" "Summoner" () () () 55000 0.8999999999999999 0.8 55 55 55 1)) ("Mook A" . #s(combatant "Mook A" 14901 0 0 0.1 0 1 "Summoner" "" (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1) #s(buff "Jutsu 1" ("Conjura" "Mook A" "Mook B" "Summoner") 0.3 0.2)) () () 14901 0.8999999999999999 0.7 15 15 15 2)) ("Summoner" . #s(combatant "Summoner" 30983 -15000 0 0.1 0 1 "" "" (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1)) ("Mook A" "Conjura") ("Conjura") 15983 0.8999999999999999 0.7 16 16 16 2))))
+                            ()
+                            () () 55000 0.8999999999999999 0.8 55 55 55 1)
+               #s(combatant "Mook A" 14901 0 0 0.1 0 1 "Summoner" ""
+                            (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1)
+                             #s(buff "Jutsu 1" ("Conjura" "Mook A" "Mook B" "Summoner") 0.3 0.2))
+                            () () 14901 0.8999999999999999 0.7 15 15 15 2)
+               #s(combatant "Summoner" 30983 -15000 0 0.1 0 1 "" ""
+                            (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1))
+                            ("Mook A" "Conjura") ("Conjura") 15983 0.8999999999999999 0.7 16 16 16 2))
+              ("Name" "XP" "BonusXP" "BonusHP" "BonusToHit" "BonusToDefend" "AOE" "BodyguardFor" "LinkedTo" "BuffName" "BuffWho" "BuffOffense" "BuffDefense" "BuffName" "BuffWho" "BuffOffense" "BuffDefense")
+              #t
+              #hash(("Conjura" . #s(combatant "Conjura" 55000 0 -1 0.3 0.3 3 "Summoner" "Summoner" () () () 55000 0.8999999999999999 0.8 55 55 55 1)) ("Mook A" . #s(combatant "Mook A" 14901 0 0 0.1 0 1 "Summoner" "" (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1) #s(buff "Jutsu 1" ("Conjura" "Mook A" "Mook B" "Summoner") 0.3 0.2)) () () 14901 0.8999999999999999 0.7 15 15 15 2)) ("Summoner" . #s(combatant "Summoner" 30983 -15000 0 0.1 0 1 "" "" (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1)) ("Mook A" "Conjura") ("Conjura") 15983 0.8999999999999999 0.7 16 16 16 2))))
      "make-combatants worked for initial villains"))
 
 
@@ -160,4 +163,16 @@
      )
  )
 
+(test-suite
+ "kill-linked"
 
+ (define heroes (make-heroes))
+ (define survivors (team.fighters-by-name heroes))
+ (define prime (hash-ref survivors "Prime"))
+
+ (is (sort-str (hash-keys (kill-linked survivors
+                                       survivors
+                                       '("Prime")
+                                       )))
+     '("Ami" "Kei")
+     "kill-linked works"))

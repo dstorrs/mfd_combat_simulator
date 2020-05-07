@@ -221,18 +221,19 @@
                                                               ('ToDefend     to-defend)
                                                               ('AOE          aoe)
                                                               ('BaseDice     base-dice)
+                                                              ('OffenseDice  offense-dice)
+                                                              ('DefenseDice  defense-dice)
                                                               ('BodyguardFor bodyguard-for)
                                                               ('LinkedTo     linked-to)
                                                               )
                                       h)
-                                    (format "~a:\tHP(~a), TotalXP(~a), ToHit(~a%), ToDefend(~a%), BaseDice(~a), OffenseDice(~a), DefenseDice(~a), AOE(~a), Bodyguarding: ~a, Linked to: ~a"
+                                    (format "~a:\tHP(~a), TotXP(~a), ToHit(~a%), ToDef(~a%), Off.Dice(~a), Def.Dice(~a), AOE(~a), Bodyguarding: ~a, Linked to: ~a"
                                             name hp
                                             total-xp
                                             (clipped/cleaned to-hit MIN-TO-HIT MAX-TO-HIT)
                                             (clipped/cleaned to-defend MIN-TO-HIT MAX-TO-HIT)
-                                            base-dice
-                                            (maybe-bonus-dice base-dice to-hit)
-                                            (maybe-bonus-dice base-dice to-defend)
+                                            offense-dice
+                                            defense-dice
                                             aoe
                                             (if (empty-string? bodyguard-for)
                                                 "<no one>"
@@ -245,7 +246,6 @@
 
 (define/contract (is-alive? fighter)
   (-> combatant? (or/c combatant? #f))
-  #;
   (log-fight-debug "checking is-alive. fighter ~a has HP ~a"
                    (combatant.Name fighter)
                    (combatant.HP fighter))
@@ -414,12 +414,12 @@
 
             (define fighter-hash
               (hash-remap (struct->hash combatant fighter)
-                         #:overwrite (hash 'ToHit       clipped-to-hit
-                                           'ToDefend    clipped-to-defend
-                                           'OffenseDice (maybe-bonus-dice BaseDice
-                                                                          raw-to-hit)
-                                           'DefenseDice (maybe-bonus-dice BaseDice
-                                                                          raw-to-defend))))
+                          #:overwrite (hash 'ToHit       clipped-to-hit
+                                            'ToDefend    clipped-to-defend
+                                            'OffenseDice (maybe-bonus-dice BaseDice
+                                                                           raw-to-hit)
+                                            'DefenseDice (maybe-bonus-dice BaseDice
+                                                                           raw-to-defend))))
             (log-fight-debug "fighter hash: ~v" fighter-hash)
             (define result (hash->struct/kw combatant++ fighter-hash))
             (log-fight-debug "~a result: ~v" __WHERE:__ result)
@@ -655,6 +655,69 @@
 
 ;;----------------------------------------------------------------------
 
+(define/contract (kill-linked all-defenders-by-name survivors linked-names)
+  (-> (hash/c name? combatant?) (hash/c name? combatant?) (listof name?)
+      (hash/c name? combatant?))
+
+  (define updated-survivors (safe-hash-remove survivors linked-names))
+  (match updated-survivors
+    [(hash-table)
+     updated-survivors]
+    [(? hash?)
+     #:when (equal? (hash-keys updated-survivors)
+                    (hash-keys survivors))
+     updated-survivors]
+    [else
+     (kill-linked all-defenders-by-name
+                  updated-survivors
+                  (remove-duplicates
+                   (flatten
+                    (map combatant.Linked-to-Me
+                         (filter combatant?
+                                 (hash-slice all-defenders-by-name
+                                             linked-names
+                                             #f))))))]))
+
+;;----------------------------------------------------------------------
+
+(define (clear-dead-bodyguards/linked-tos surviving-defenders-hash names-killed)
+  (for/hash ([(name fighter) (in-hash surviving-defenders-hash)])
+    (values name
+            (let* ([fighter
+                    (set-combatant-Bodyguarding-Me
+                     fighter
+                     (set-subtract (combatant.Bodyguarding-Me fighter)
+                                   names-killed))]
+                   [fighter
+                    (set-combatant-Linked-to-Me
+                     fighter
+                     (set-subtract (combatant.Linked-to-Me fighter)
+                                   names-killed))])
+              fighter))))
+
+;;----------------------------------------------------------------------
+
+(define/contract (rebuild-fighters survivors)
+  (-> (hash/c name? combatant?) (listof combatant?))
+  
+  (define fighters
+    (for/list ([fighter (hash-values survivors)])
+      (define h (struct->hash combatant fighter))
+      (log-fight-debug "rebuilding fighter. h: ~v" h)
+      (define remapped
+        (hash-remap h
+                    #:include '(Name XP BonusXP BonusHP BonusToHit BonusToDefend AOE BodyguardFor LinkedTo Buffs)
+                    #:overwrite (hash 'BonusToDefend (λ (v) (- v EXHAUSTION-PENALTY)))))
+      (log-fight-debug "rebuilding fighter. remapped: ~v" remapped)
+      (define result (hash->struct/kw combatant++ remapped))
+      (log-fight-debug "rebuilding fighter. result: ~v" result)
+      result))
+  (define results (recalc-team-stats fighters))
+  (log-fight-debug "rebuilding fighters. final result: ~v" results)
+  results)
+
+;;----------------------------------------------------------------------
+
 (define/contract (fight-one-round h-team v-team)
   (-> team? team? (values team? team?))
 
@@ -714,26 +777,9 @@
                           (when (not (null? links))
                             (displayln (format "~a was killed and had combatants linked to them.  Killing those combatants and anyone recursively linked to them."
                                                def-name)))
-                          (let kill-linked ([survivors    survivors]
-                                            [linked-names (cons def-name links)])
-                            (define updated-survivors (safe-hash-remove survivors
-                                                                        linked-names))
-                            (match updated-survivors
-                              [(hash-table)
-                               updated-survivors]
-                              [(? hash?)
-                               #:when (equal? (hash-keys updated-survivors)
-                                              (hash-keys survivors))
-                               updated-survivors]
-                              [else
-                               (kill-linked updated-survivors
-                                            (remove-duplicates
-                                             (flatten
-                                              (map combatant.Linked-to-Me
-                                                   (filter combatant?
-                                                           (hash-slice all-defenders-by-name
-                                                                       linked-names
-                                                                       #f))))))]))]))])))
+                          (kill-linked  all-defenders-by-name
+                                        survivors
+                                        (cons def-name links))]))])))
       (define names-killed (set-subtract (hash-keys all-defenders-by-name)
                                          (hash-keys surviving-defenders-hash)))
       (match names-killed
@@ -743,22 +789,8 @@
          (displayln (format "\tKilled: ~a"
                             (string-join (sort-str names-killed) ", ")))])
 
-      (define final-defenders-hash
-        (for/hash ([(name fighter) (in-hash surviving-defenders-hash)])
-          (values name
-                  (let* ([fighter
-                          (set-combatant-Bodyguarding-Me
-                           fighter
-                           (set-subtract (combatant.Bodyguarding-Me fighter)
-                                         names-killed))]
-                         [fighter
-                          (set-combatant-Linked-to-Me
-                           fighter
-                           (set-subtract (combatant.Linked-to-Me fighter)
-                                         names-killed))])
-                    fighter))))
-
-
+      (define survivors (clear-dead-bodyguards/linked-tos  surviving-defenders-hash
+                                                           names-killed))
 
       ;; The heroes attack first / defend second, so they will be defender-map when the
       ;; round ends.  Therefore, defenders get returned in first position at the end.
@@ -766,22 +798,7 @@
       ;; After each round we reduce ToDefend by EXHAUSTION-PENALTY.  This ensures that the
       ;; fight will still eventually end even if everyone starts off with super high
       ;; ToDefend scores that render them untouchable.
-      (define (rebuild-fighters survivors)
-        (define fighters
-          (for/list ([fighter (hash-values survivors)])
-            (define h (struct->hash combatant fighter))
-            (log-fight-debug "rebuilding fighter. h: ~v" h)
-            (define remapped
-              (hash-remap h
-                          #:include '(Name XP BonusXP BonusHP BonusToHit BonusToDefend AOE BodyguardFor LinkedTo Buffs)
-                          #:overwrite (hash 'BonusToDefend (λ (v) (- v EXHAUSTION-PENALTY)))))
-            (log-fight-debug "rebuilding fighter. remapped: ~v" remapped)
-            (define result (hash->struct/kw combatant++ remapped))
-            (log-fight-debug "rebuilding fighter. result: ~v" result)
-            result))
-        (define results (recalc-team-stats fighters))
-        (log-fight-debug "rebuilding fighters. final result: ~v" results)
-        results)
+
 
       (match is-second-half?
         [#f (log-fight-debug "going into second half of fight-one-round")
