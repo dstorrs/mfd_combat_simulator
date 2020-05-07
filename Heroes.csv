@@ -1,4 +1,4 @@
-Name,XP,BonusXP,BonusHP,BonusToHit,BonusToDefend,AOE,LinkedTo,BodyguardFor,BuffName,BuffWho,BuffOffense,BuffDefense
+Name,XP,BonusXP,BonusHP,BonusToHit,BonusToDefend,AOE,BodyguardFor,LinkedTo,BuffName,BuffWho,BuffOffense,BuffDefense
 Ami,13993,,1,,,,,Kei,Mori,"Ami,Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04,Naruto 05,Naruto 06,Naruto 07,Naruto 08,Naruto 09,Naruto 10,Naruto 11,Naruto 12,Naruto 13,Naruto 14,Naruto 15,Naruto 16,Naruto 17,Naruto 18,Naruto 19,Naruto 20,Kei,Jounin A,Jounin B,Pangolin A,Pangolin B",0.06,0.06
 Kei,5785,,1,,,,,,,,,
 Prime,17854,,1,0.15,,,,,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04,Naruto 05,Naruto 06,Naruto 07,Naruto 08,Naruto 09,Naruto 10,Naruto 11,Naruto 12,Naruto 13,Naruto 14,Naruto 15,Naruto 16,Naruto 17,Naruto 18,Naruto 19,Naruto 20",0.1,0.1

@@ -1,4 +1,4 @@
-Name,XP,BonusXP,BonusHP,BonusToHit,BonusToDefend,AOE,LinkedTo,BodyguardFor,BuffName,BuffWho,BuffOffense,BuffDefense,BuffName,BuffWho,BuffOffense,BuffDefense
+Name,XP,BonusXP,BonusHP,BonusToHit,BonusToDefend,AOE,BodyguardFor,LinkedTo,BuffName,BuffWho,BuffOffense,BuffDefense,BuffName,BuffWho,BuffOffense,BuffDefense
 Conjura,55000,,-1,0.3,0.3,3,Summoner,Summoner,,,,,,,,
 Summoner,30983,-15000,,0.1,0,,,,Teamwork,"Summoner,Mook A,Mook B",0.1,0.1,,,,
 Mook A,14901,,,0.1,0,,,Summoner,Teamwork,"Summoner,Mook A,Mook B",0.1,0.1,Jutsu 1,"Conjura,Summoner,Mook A,Mook B",0.3,0.2
