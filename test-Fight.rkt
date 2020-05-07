@@ -7,6 +7,12 @@
 (villains-filepath (build-path 'same "test-villains.csv"))
 (define-values (heroes-rows villains-rows) (get-csv-data))
 
+;; (define-values (headers buff-field-names fields num-fields)
+;;   (parse-csv-data heroes-rows))
+;; (define kei-row (third heroes-rows))
+;; (define kei (make-fighter kei-row headers buff-field-names fields num-fields))
+;; kei
+
 (test-suite
  "make-fighter"
 
@@ -21,7 +27,7 @@
                  (combatant "Ami" 13993 0 1 0 0 1 "Kei" ""
                             (list (buff "Mori" '("Ami" "Kei" "Naruto 01" "Prime") 0.06 0.03))
                             '() '() 13993 0.3 0.3 14 3)
-                 (combatant "Kei" 5785 0 1 0 0 1 "" "" '() '() '() 5785 0.3 0.3 6 3)
+                 (combatant "Kei" 5785 0 1 0 0 1 "INVALID-BG" "INVALID-LT" '() '() '() 5785 0.3 0.3 6 3)
                  (combatant "Prime" 17854 0 1 0.15 0 1 "" ""
                             (list (buff "Teamwork" '("Naruto 01" "Naruto 02" "Naruto 03" "Naruto 04" "Naruto 05" "Naruto 06" "Naruto 07" "Prime") 0.1 0.23))
                             '() '() 17854 0.44999999999999996 0.3 18 3)
@@ -45,10 +51,9 @@
                             '() '() 17854 0.44999999999999996 0.3 18 3)
                  (combatant "Naruto 07" 17854 0 1 0.15 0 1 "Prime" "Prime"
                             (list (buff "Teamwork" '("Naruto 01" "Naruto 02" "Naruto 03" "Naruto 04" "Naruto 05" "Naruto 06" "Naruto 07" "Prime") 0.1 0.23))
-                            '() '() 17854 0.44999999999999996 0.3 18 3)
-)]
-       [expected-bgf  (list "Kei" "" "" "Prime"  "Prime" "Prime" "Prime" "Prime"  "Prime" "Prime")]
-       [expected-lt   (list "" "" "" "Prime"  "Prime" "Prime" "Prime" "Prime"  "Prime" "Prime")]
+                            '() '() 17854 0.44999999999999996 0.3 18 3))]
+       [expected-bgf  (list "Kei" "INVALID-BG" "" "Prime"  "Prime" "Prime" "Prime" "Prime"  "Prime" "Prime")]
+       [expected-lt   (list "" "INVALID-LT" "" "Prime"  "Prime" "Prime" "Prime" "Prime"  "Prime" "Prime")]
        )
    (define fighter (make-fighter row headers buff-field-names fields num-fields))
    (is fighter
