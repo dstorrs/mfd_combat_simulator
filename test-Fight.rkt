@@ -76,7 +76,7 @@
  (define-values (headers buff-field-names fields num-fields)
    (parse-csv-data heroes-rows))
 
- (define final-fighters
+ (define heroes
    (list
     ;          Name,XP,BonusXP,BonusHP,BonusToHit,BonusToDefend,AOE,BodyguardFor,LinkedTo,BuffName,BuffWho,BuffOffense,BuffDefense
     (combatant "Ami" 13993 0 1 0 0 1 "Kei" ""
@@ -108,14 +108,166 @@
                (list (buff "Teamwork" '("Naruto 01" "Naruto 02" "Naruto 03" "Naruto 04" "Naruto 05" "Naruto 06" "Naruto 07" "Prime") 0.1 0.23))
                '("Naruto 07"  "Naruto 06"  "Naruto 05"  "Naruto 04"  "Naruto 03"  "Naruto 02" "Naruto 01")
                '("Naruto 07"  "Naruto 06"  "Naruto 05"  "Naruto 04"  "Naruto 03"  "Naruto 02" "Naruto 01")
-               17854 0.99 0.9 18 24 40 3)
-    ))
+               17854 0.99 0.9 18 24 40 3)))
 
  (is (make-combatants heroes-rows)
-     (team  final-fighters
+     (team  heroes
             headers
             #t
-            (for/hash ([fighter final-fighters]) (values (combatant.Name fighter) fighter))
+            (for/hash ([fighter heroes]) (values (combatant.Name fighter) fighter))
             )
      "make-combatants worked for initial case")
- )
+
+ (is (make-combatants villains-rows)
+ '#s(team
+    (#s(combatant
+        "Conjura"
+        55000
+        0
+        -1
+        0.3
+        0.3
+        3
+        "Summoner"
+        "Summoner"
+        ()
+        ()
+        ("Mook A")
+        55000
+        0.8999999999999999
+        0.8
+        55
+        55
+        55
+        1)
+     #s(combatant
+        "Mook A"
+        14901
+        0
+        0
+        0.1
+        0
+        1
+        "Summoner"
+        "Conjura"
+        (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1)
+         #s(buff "Jutsu 1" ("Conjura" "Mook A" "Mook B" "Summoner") 0.3 0.2))
+        ()
+        ()
+        14901
+        0.8999999999999999
+        0.7
+        15
+        15
+        15
+        2)
+     #s(combatant
+        "Summoner"
+        30983
+        -15000
+        0
+        0.1
+        0
+        1
+        ""
+        ""
+        (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1))
+        ("Mook A" "Conjura")
+        ("Conjura")
+        15983
+        0.8999999999999999
+        0.7
+        16
+        16
+        16
+        2))
+    ("Name"
+     "XP"
+     "BonusXP"
+     "BonusHP"
+     "BonusToHit"
+     "BonusToDefend"
+     "AOE"
+     "BodyguardFor"
+     "LinkedTo"
+     "BuffName"
+     "BuffWho"
+     "BuffOffense"
+     "BuffDefense"
+     "BuffName"
+     "BuffWho"
+     "BuffOffense"
+     "BuffDefense")
+    #t
+    #hash(("Conjura"
+           .
+           #s(combatant
+              "Conjura"
+              55000
+              0
+              -1
+              0.3
+              0.3
+              3
+              "Summoner"
+              "Summoner"
+              ()
+              ()
+              ("Mook A")
+              55000
+              0.8999999999999999
+              0.8
+              55
+              55
+              55
+              1))
+          ("Mook A"
+           .
+           #s(combatant
+              "Mook A"
+              14901
+              0
+              0
+              0.1
+              0
+              1
+              "Summoner"
+              "Conjura"
+              (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1)
+               #s(buff
+                  "Jutsu 1"
+                  ("Conjura" "Mook A" "Mook B" "Summoner")
+                  0.3
+                  0.2))
+              ()
+              ()
+              14901
+              0.8999999999999999
+              0.7
+              15
+              15
+              15
+              2))
+          ("Summoner"
+           .
+           #s(combatant
+              "Summoner"
+              30983
+              -15000
+              0
+              0.1
+              0
+              1
+              ""
+              ""
+              (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1))
+              ("Mook A" "Conjura")
+              ("Conjura")
+              15983
+              0.8999999999999999
+              0.7
+              16
+              16
+              16
+              2))))
+     "make-combatants worked for initial villains"))
