@@ -119,155 +119,45 @@
      "make-combatants worked for initial case")
 
  (is (make-combatants villains-rows)
- '#s(team
-    (#s(combatant
-        "Conjura"
-        55000
-        0
-        -1
-        0.3
-        0.3
-        3
-        "Summoner"
-        "Summoner"
-        ()
-        ()
-        ("Mook A")
-        55000
-        0.8999999999999999
-        0.8
-        55
-        55
-        55
-        1)
-     #s(combatant
-        "Mook A"
-        14901
-        0
-        0
-        0.1
-        0
-        1
-        "Summoner"
-        "Conjura"
-        (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1)
-         #s(buff "Jutsu 1" ("Conjura" "Mook A" "Mook B" "Summoner") 0.3 0.2))
-        ()
-        ()
-        14901
-        0.8999999999999999
-        0.7
-        15
-        15
-        15
-        2)
-     #s(combatant
-        "Summoner"
-        30983
-        -15000
-        0
-        0.1
-        0
-        1
-        ""
-        ""
-        (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1))
-        ("Mook A" "Conjura")
-        ("Conjura")
-        15983
-        0.8999999999999999
-        0.7
-        16
-        16
-        16
-        2))
-    ("Name"
-     "XP"
-     "BonusXP"
-     "BonusHP"
-     "BonusToHit"
-     "BonusToDefend"
-     "AOE"
-     "BodyguardFor"
-     "LinkedTo"
-     "BuffName"
-     "BuffWho"
-     "BuffOffense"
-     "BuffDefense"
-     "BuffName"
-     "BuffWho"
-     "BuffOffense"
-     "BuffDefense")
-    #t
-    #hash(("Conjura"
-           .
-           #s(combatant
-              "Conjura"
-              55000
-              0
-              -1
-              0.3
-              0.3
-              3
-              "Summoner"
-              "Summoner"
-              ()
-              ()
-              ("Mook A")
-              55000
-              0.8999999999999999
-              0.8
-              55
-              55
-              55
-              1))
-          ("Mook A"
-           .
-           #s(combatant
-              "Mook A"
-              14901
-              0
-              0
-              0.1
-              0
-              1
-              "Summoner"
-              "Conjura"
-              (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1)
-               #s(buff
-                  "Jutsu 1"
-                  ("Conjura" "Mook A" "Mook B" "Summoner")
-                  0.3
-                  0.2))
-              ()
-              ()
-              14901
-              0.8999999999999999
-              0.7
-              15
-              15
-              15
-              2))
-          ("Summoner"
-           .
-           #s(combatant
-              "Summoner"
-              30983
-              -15000
-              0
-              0.1
-              0
-              1
-              ""
-              ""
-              (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1))
-              ("Mook A" "Conjura")
-              ("Conjura")
-              15983
-              0.8999999999999999
-              0.7
-              16
-              16
-              16
-              2))))
+     '#s(team (#s(combatant "Conjura" 55000 0 -1 0.3 0.3 3 "Summoner" "Summoner"
+                       ()
+                       () () 55000 0.8999999999999999 0.8 55 55 55 1)
+          #s(combatant "Mook A" 14901 0 0 0.1 0 1 "Summoner" ""
+                       (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1)
+                        #s(buff "Jutsu 1" ("Conjura" "Mook A" "Mook B" "Summoner") 0.3 0.2))
+                       () () 14901 0.8999999999999999 0.7 15 15 15 2)
+          #s(combatant "Summoner" 30983 -15000 0 0.1 0 1 "" ""
+                       (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1))
+                       ("Mook A" "Conjura") ("Conjura") 15983 0.8999999999999999 0.7 16 16 16 2))
+         ("Name" "XP" "BonusXP" "BonusHP" "BonusToHit" "BonusToDefend" "AOE" "BodyguardFor" "LinkedTo" "BuffName" "BuffWho" "BuffOffense" "BuffDefense" "BuffName" "BuffWho" "BuffOffense" "BuffDefense")
+         #t
+         #hash(("Conjura" . #s(combatant "Conjura" 55000 0 -1 0.3 0.3 3 "Summoner" "Summoner" () () () 55000 0.8999999999999999 0.8 55 55 55 1)) ("Mook A" . #s(combatant "Mook A" 14901 0 0 0.1 0 1 "Summoner" "" (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1) #s(buff "Jutsu 1" ("Conjura" "Mook A" "Mook B" "Summoner") 0.3 0.2)) () () 14901 0.8999999999999999 0.7 15 15 15 2)) ("Summoner" . #s(combatant "Summoner" 30983 -15000 0 0.1 0 1 "" "" (#s(buff "Teamwork" ("Mook A" "Mook B" "Summoner") 0.1 0.1)) ("Mook A" "Conjura") ("Conjura") 15983 0.8999999999999999 0.7 16 16 16 2))))
      "make-combatants worked for initial villains"))
+
+
+(test-suite
+ "generate-matchups"
+
+ (define heroes   (make-combatants heroes-rows))
+ (define villains (make-combatants villains-rows))
+
+ (define h2v-matchups #f)
+ (with-output-to-string
+   (thunk
+    (set! h2v-matchups (generate-matchups heroes villains))))
+
+ (define v2h-matchups #f)
+ (with-output-to-string
+   (thunk
+    (set! v2h-matchups (generate-matchups villains heroes))))
+
+ (ok (thunk (match h2v-matchups
+              [(and (list (matchup (? name? attacker-name) (list (? name?))) ...) lst)
+               #:when (= 10 (length lst))
+               'ok]
+              [else #f]))
+     "heroes->villains has 10 matchups, each with one defender name"
+     )
+ )
+
+
