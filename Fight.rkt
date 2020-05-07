@@ -141,7 +141,7 @@
            [(TotalXP #f)                exact-positive-integer?]
            [(ToHit   #f)                real?]
            [(ToDefend   #f)             real?]
-           [(BaseDice   #f)             integer?]
+           [(BaseDice   #f)             exact-positive-integer?]
            [(HP #f)                     integer?])
           (#:omit-reflection
            #:rule ("calc TotalXP"
