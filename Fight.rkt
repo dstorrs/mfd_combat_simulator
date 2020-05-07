@@ -437,15 +437,19 @@
 (define/contract (make-fighter row headers buff-field-names fields num-fields)
   (-> (listof string?) (listof string?) (listof string?) (listof string?) natural-number/c
       combatant?)
-  
+
   (define base (hash->struct/kw combatant++
                                 (for/hash ([h fields]
                                            [v (take row num-fields)])
                                   (values (string->symbol h)
                                           (string-trim v)))))
+  (log-fight-debug "base is: ~v" base)
 
-  (cond [(null? buff-field-names) base]
+  (cond [(null? buff-field-names)
+         (log-fight-debug "no buffs")
+         base]
         [else
+         (log-fight-debug "got buffs")
 
          (define buff-header-lists (step-by-n list buff-field-names 4))
          ; e.g. '((BuffName BuffWho BuffOffense BuffDefense) (BuffName BuffWho BuffOffense BuffDefense))
@@ -453,6 +457,7 @@
          (define buff-data-lists   (step-by-n list (drop row num-fields) 4))
          ; e.g. '(("JutsuA" "Alice,Bob" 0.1 0.2) ("JutsuB" "Alice,Tom" 0.3 0.4))
 
+         (log-fight-debug "buff header lists: ~v "buff-header-lists)
          (log-fight-debug "buff data lists: ~v "buff-data-lists)
 
          ; This ended up very convoluted because I was beating my
@@ -480,13 +485,14 @@
                    (hash 'BuffName    name
                          'BuffWho     (string-split who ",")
                          'BuffOffense (to-num off)
-                         'BuffDefense (to-num off))]))
+                         'BuffDefense (to-num def))]))
               result)))
-         ;(log-fight-debug "buffs: ~v" buffs)
-         (set-combatant-Buffs base
-                              (map (curry hash->struct/kw buff++)
-                                   buffs))])
-  )
+         (log-fight-debug "buffs: ~v" buffs)
+         (define result (set-combatant-Buffs base
+                               (map (curry hash->struct/kw buff++)
+                                    buffs)))
+         (log-fight-debug "result: ~v" result)
+         result]))
 
 ;;----------------------------------------------------------------------
 
