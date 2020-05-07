@@ -1,8 +1,11 @@
 Name,XP,BonusXP,BonusHP,BonusToHit,BonusToDefend,AOE,BodyguardFor,LinkedTo,BuffName,BuffWho,BuffOffense,BuffDefense
 Ami,13993,,1,,,,Kei,,Mori,"Ami,Prime,Naruto 01,Kei",0.06,0.03
 Kei,5785,,1,,,,,,,,,
-Prime,17854,,1,0.15,,,,,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04",0.1,0.23
-Naruto 01,17854,,1,0.15,,,Prime,Prime,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04",0.1,0.23
-Naruto 02,17854,,1,0.15,,,Prime,Prime,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04",0.1,0.23
-Naruto 03,17854,,1,0.15,,,Prime,Prime,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04",0.1,0.23
-Naruto 04,17854,,1,0.15,,,Prime,Prime,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04",0.1,0.23
+Prime,17854,,1,0.15,,,,,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04,Naruto 05,Naruto 06,Naruto 07",0.1,0.23
+Naruto 01,17854,,1,0.15,,,Prime,Prime,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04,Naruto 05,Naruto 06,Naruto 07",0.1,0.23
+Naruto 02,17854,,1,0.15,,,Prime,Prime,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04,Naruto 05,Naruto 06,Naruto 07",0.1,0.23
+Naruto 03,17854,,1,0.15,,,Prime,Prime,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04,Naruto 05,Naruto 06,Naruto 07",0.1,0.23
+Naruto 04,17854,,1,0.15,,,Prime,Prime,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04,Naruto 05,Naruto 06,Naruto 07",0.1,0.23
+Naruto 05,17854,,1,0.15,,,Prime,Prime,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04,Naruto 05,Naruto 06,Naruto 07",0.1,0.23
+Naruto 06,17854,,1,0.15,,,Prime,Prime,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04,Naruto 05,Naruto 06,Naruto 07",0.1,0.23
+Naruto 07,17854,,1,0.15,,,Prime,Prime,Teamwork,"Prime,Naruto 01,Naruto 02,Naruto 03,Naruto 04,Naruto 05,Naruto 06,Naruto 07",0.1,0.23
