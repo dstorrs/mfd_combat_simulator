@@ -55,7 +55,7 @@
 (define csv-column-names  (make-parameter '()))
 (define-logger fight)
 
-(define MIN-TO-HIT 0.5)
+(define MIN-TO-HIT 0.05)
 (define MAX-TO-HIT 0.99)
 
 (define MIN-TO-DEFEND 0)
