@@ -99,8 +99,6 @@
            [BuffOffense    number-like? to-num]
            [BuffDefense number-like? to-num])
           (#:omit-reflection
-           #:convert-from (csv-record (list? (list BuffName BuffWho BuffOffense BuffDefense)
-                                             (     BuffName BuffWho BuffOffense BuffDefense)))
            #:convert-for (stats-dump (#:post (λ (h)
                                                (match h
                                                  [(hash-table ('BuffName    name)
@@ -162,11 +160,6 @@
                    #:transform ToDefend (ToDefend BonusToDefend)
                    [(or ToDefend (basic-ToDefend BonusToDefend))])
 
-           #:convert-from (csv-record
-                           (list?
-                            (list Name XP BonusXP BonusHP BonusToHit BonusToDefend AOE LinkedTo BodyguardFor _ ...)
-                            (Name XP BonusXP BonusHP BonusToHit BonusToDefend AOE LinkedTo BodyguardFor)
-                            ))
            #:convert-for (hash (#:post identity))
            #:convert-for (stats-dump
                           (#:post
@@ -257,9 +250,10 @@
            )
           (#:rule ("remove invalid LinkedTo and Bodyguard entries"
                    #:transform fighters (fighters)
-                   [(log-fight-debug "about to remove invalid LinkedTo and Bodyguard entries")
+                   [(log-fight-debug "team++ about to remove invalid LinkedTo and Bodyguard entries")
                     (define all-fighters-by-name (hash-aggregate combatant.Name fighters))
                     (for/list ([fighter fighters])
+                      (log-fight-debug "in remove invalid LT/BG, beforehand, fighter is: ~v" fighter)
                       (let* ([bodyguard-for (combatant.BodyguardFor fighter)]
                              [linked-to     (combatant.LinkedTo     fighter)]
                              [fighter       (if (hash-has-key? all-fighters-by-name bodyguard-for)
@@ -268,19 +262,27 @@
                              [fighter       (if (hash-has-key? all-fighters-by-name linked-to)
                                                 fighter
                                                 (set-combatant-LinkedTo fighter ""))])
+                        (log-fight-debug "in remove invalid LT/BG, result is: ~v" fighter)
                         fighter))])
            #:rule ("recalculate stats based on raw numbers and ally buffs"
                    #:transform fighters (fighters recalc-stats?)
-                   [(cond [(false? recalc-stats?) (log-fight-debug "recalc-stats? is #f")
+                   [(cond [(false? recalc-stats?)
+                           (log-fight-debug "recalc-stats? is #f")
                            fighters]
-                          [(null? fighters)(log-fight-debug "recalc-stats? is #f")
+                          [(null? fighters)
+                           (log-fight-debug "recalc-stats? is #f")
                            fighters]
-                          [else (recalc-team-stats fighters)])])
+                          [else
+                           (log-fight-debug "recalcing stats")
+                           (recalc-team-stats fighters)])])
            #:rule ("set bodyguarding-me and linked-to-me"
                    #:transform fighters (fighters)
-                   [(log-fight-debug "entering set bodyguards, fighters is: ~v" fighters)
-                    (cond [(null? fighters) fighters]
+                   [(log-fight-debug "team++ entering set bodyguarding me/linked to me, fighters is: ~v" fighters)
+                    (cond [(null? fighters)
+                           (log-fight-debug "in set BG-me and LT-me, fighters was null")
+                           fighters]
                           [else
+                           (log-fight-debug "in set BG-me and LT-me, fighters was NOT null")
                            (define bodyguards   (hash-aggregate combatant.BodyguardFor fighters))
                            (define linked-to    (hash-aggregate combatant.LinkedTo     fighters))
                            ;; bodyguards and linked-to are (hash/c name? (listof combatant?))
@@ -307,15 +309,16 @@
                                            (set-combatant-Linked-to-Me fighter (map combatant.Name
                                                                                     (autobox (hash-ref linked-to name))))
                                            fighter)))])
+                             (log-fight-debug "in set BG-me and LT-me, final result: ~v" result)
                              result)])])
            #:rule ("sort fighters by name"
                    #:transform fighters (fighters)
                    [(sort-str #:key combatant.Name fighters)])
            #:rule ("generate fighters-by-name"
                    #:transform fighters-by-name (fighters)
-                   [(if (null? fighters)
-                        (hash)
-                        (hash-aggregate combatant.Name fighters))])
+                   [(cond [(null? fighters) (hash)]
+                          [else (hash-aggregate combatant.Name fighters)])])
+
            #:convert-for (stats-dump (#:post
                                       (λ (h)
                                         (cond [(null? (hash-keys h)) "\n"]
@@ -386,6 +389,10 @@
             (define defense (cons (basic-ToDefend BonusToDefend)
                                   def))
 
+            (log-fight-debug "before boost, ~a hash off/def: ~a/~a"
+                             fighter-name
+                             (combatant.ToHit fighter)
+                             (combatant.ToDefend fighter))
             (let* ([fighter (set-combatant-ToHit fighter
                                                  (clip-to-range (apply + offense)
                                                                 MIN-TO-HIT
@@ -489,8 +496,8 @@
               result)))
          (log-fight-debug "buffs: ~v" buffs)
          (define result (set-combatant-Buffs base
-                               (map (curry hash->struct/kw buff++)
-                                    buffs)))
+                                             (map (curry hash->struct/kw buff++)
+                                                  buffs)))
          (log-fight-debug "result: ~v" result)
          result]))
 
