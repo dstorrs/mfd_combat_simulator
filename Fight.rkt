@@ -65,6 +65,7 @@
 ;;----------------------------------------------------------------------
 
 (define (clip-to-range v min-val max-val)
+  (log-fight-debug "clipping v ~a, min ~a, max ~a" v min-val max-val)
   (max min-val (min v max-val)))
 
 ;;----------------------------------------------------------------------
@@ -112,9 +113,12 @@
 (define (basic-ToDefend BonusToDefend) (+ (to-num BonusToDefend) DEFAULT-TO-DEFEND))
 (define (xp->dice TotalXP)      (inexact->exact (ceiling (/ (to-num TotalXP) 1000))))
 (define (maybe-bonus-dice base-dice chance)
-  (if (> chance 1)
-      (inexact->exact (ceiling (* base-dice chance)))
-      base-dice))
+  (define result (if (> chance 1)
+                     (inexact->exact (ceiling (* base-dice chance)))
+                     base-dice))
+  (log-fight-debug "maybe bonus. base ~a, chance ~a, result ~a"  base-dice chance result)
+  result
+  )
 (define (calc-offense-dice fighter)
   (maybe-bonus-dice (combatant.BaseDice fighter)
                     (combatant.ToHit fighter)))
@@ -142,6 +146,8 @@
            [(ToHit   #f)                real?]
            [(ToDefend   #f)             real?]
            [(BaseDice   #f)             exact-positive-integer?]
+           [(OffenseDice   #f)          exact-positive-integer?]
+           [(DefenseDice   #f)          exact-positive-integer?]
            [(HP #f)                     integer?])
           (#:omit-reflection
            #:rule ("calc TotalXP"
@@ -150,6 +156,12 @@
            #:rule ("calc BaseDice"
                    #:transform BaseDice (TotalXP)
                    [(xp->dice (to-num TotalXP))])
+           #:rule ("calc OffenseDice"
+                   #:transform OffenseDice (OffenseDice BaseDice)
+                   [(or OffenseDice BaseDice)])
+           #:rule ("calc DefenseDice"
+                   #:transform DefenseDice (DefenseDice BaseDice)
+                   [(or DefenseDice BaseDice)])
            #:rule ("calc HP"
                    #:transform HP       (HP BonusHP)
                    [(or HP (+ DEFAULT-HP (to-num BonusHP)))])
@@ -264,17 +276,6 @@
                                                 (set-combatant-LinkedTo fighter ""))])
                         (log-fight-debug "in remove invalid LT/BG, result is: ~v" fighter)
                         fighter))])
-           #:rule ("recalculate stats based on raw numbers and ally buffs"
-                   #:transform fighters (fighters recalc-stats?)
-                   [(cond [(false? recalc-stats?)
-                           (log-fight-debug "recalc-stats? is #f")
-                           fighters]
-                          [(null? fighters)
-                           (log-fight-debug "recalc-stats? is #f")
-                           fighters]
-                          [else
-                           (log-fight-debug "recalcing stats")
-                           (recalc-team-stats fighters)])])
            #:rule ("set bodyguarding-me and linked-to-me"
                    #:transform fighters (fighters)
                    [(log-fight-debug "team++ entering set bodyguarding me/linked to me, fighters is: ~v" fighters)
@@ -311,6 +312,17 @@
                                            fighter)))])
                              (log-fight-debug "in set BG-me and LT-me, final result: ~v" result)
                              result)])])
+           #:rule ("recalculate stats based on raw numbers and ally buffs"
+                   #:transform fighters (fighters recalc-stats?)
+                   [(cond [(false? recalc-stats?)
+                           (log-fight-debug "recalc-stats? is #f")
+                           fighters]
+                          [(null? fighters)
+                           (log-fight-debug "recalc-stats? is #f")
+                           fighters]
+                          [else
+                           (log-fight-debug "recalcing stats")
+                           (recalc-team-stats fighters)])])
            #:rule ("sort fighters by name"
                    #:transform fighters (fighters)
                    [(sort-str #:key combatant.Name fighters)])
@@ -370,7 +382,7 @@
        (for/list ([fighter fighters])
          (match-define
            (struct* combatant ([Name          fighter-name]
-                               [TotalXP       TotalXP]
+                               [BaseDice      BaseDice]
                                [BonusToHit    (app to-num BonusToHit)]
                                [BonusToDefend (app to-num BonusToDefend)]))
            fighter)
@@ -385,28 +397,36 @@
                              fighter-name off def)
 
             ; recalculate the ToHit and ToDefend from scratch
-            (define offense (cons (basic-ToHit BonusToHit) off))
-            (define defense (cons (basic-ToDefend BonusToDefend)
-                                  def))
-
             (log-fight-debug "before boost, ~a hash off/def: ~a/~a"
                              fighter-name
                              (combatant.ToHit fighter)
                              (combatant.ToDefend fighter))
-            (let* ([fighter (set-combatant-ToHit fighter
-                                                 (clip-to-range (apply + offense)
-                                                                MIN-TO-HIT
-                                                                MAX-TO-HIT))]
-                   [fighter (set-combatant-ToDefend fighter
-                                                    (clip-to-range (apply + defense)
-                                                                   MIN-TO-DEFEND
-                                                                   MAX-TO-DEFEND))])
-              (log-fight-debug "after boost, ~a hash off/def: ~a/~a"
-                               fighter-name
-                               (combatant.ToHit fighter)
-                               (combatant.ToDefend fighter))
-              fighter)])))
-     (log-fight-debug  "updated fighters: ~a"
+            (define offense (cons (basic-ToHit BonusToHit)       off))
+            (define defense (cons (basic-ToDefend BonusToDefend) def))
+            (define raw-to-hit    (apply + offense))
+            (define raw-to-defend (apply + defense))
+            (define clipped-to-hit (clip-to-range (apply + offense) MIN-TO-HIT MAX-TO-HIT))
+            (define clipped-to-defend (clip-to-range (apply + defense)
+                                                     MIN-TO-DEFEND
+                                                     MAX-TO-DEFEND))
+            (log-fight-debug "to-hit, raw ~a. clipped: ~a" raw-to-hit clipped-to-hit)
+            (log-fight-debug "to-def, raw ~a. clipped: ~a" raw-to-defend clipped-to-defend)
+
+            (define fighter-hash
+              (hash-remap (struct->hash combatant fighter)
+                         #:overwrite (hash 'ToHit       clipped-to-hit
+                                           'ToDefend    clipped-to-defend
+                                           'OffenseDice (maybe-bonus-dice BaseDice
+                                                                          raw-to-hit)
+                                           'DefenseDice (maybe-bonus-dice BaseDice
+                                                                          raw-to-defend))))
+            (log-fight-debug "fighter hash: ~v" fighter-hash)
+            (define result (hash->struct/kw combatant++ fighter-hash))
+            (log-fight-debug "~a result: ~v" __WHERE:__ result)
+            result])))
+
+     (log-fight-debug  "~a updated fighters: ~a"
+                       __WHERE:__
                        (with-output-to-string
                          (thunk (pretty-display
                                  updated-fighters))))
