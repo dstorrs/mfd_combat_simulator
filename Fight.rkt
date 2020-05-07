@@ -24,7 +24,7 @@
 (define DEFAULT-HP          2)    ; default points of damage a combatant can take. die at 0
 (define DEFAULT-TO-HIT      0.3)  ; 30% chance for each die to cause a point of damage
 (define DEFAULT-TO-DEFEND   0.3)  ; 30% chance for each die to deflect a point of damage
-(define EXHAUSTION-PENALTY  0.05)  ; after every round, reduce everyone's ToDefend this much
+(define EXHAUSTION-PENALTY  0.1)  ; after every round, reduce everyone's ToDefend this much
 
 ;   These are here for reference so you can see what the original
 ;   values were if you modify this code in DrRacket.
@@ -86,7 +86,8 @@
 (define name? non-empty-string?)
 (struct++ matchup ([attacker name?]
                    [defenders (listof name?)])
-          #:transparent)
+          (#:omit-reflection)
+          #:prefab)
 
 
 (struct++ buff
@@ -97,7 +98,8 @@
                                            [else (map string-trim (string-split v ","))])))]
            [BuffOffense    number-like? to-num]
            [BuffDefense number-like? to-num])
-          (#:convert-from (csv-record (list? (list BuffName BuffWho BuffOffense BuffDefense)
+          (#:omit-reflection
+           #:convert-from (csv-record (list? (list BuffName BuffWho BuffOffense BuffDefense)
                                              (     BuffName BuffWho BuffOffense BuffDefense)))
            #:convert-for (stats-dump (#:post (λ (h)
                                                (match h
@@ -106,7 +108,22 @@
                                                               ('BuffOffense off)
                                                               ('BuffDefense def))
                                                   (format "~a,\"~a\",~a,~a" name (string-join who ",") off def)])))))
-          #:transparent)
+          #:prefab)
+
+(define (basic-ToHit    BonusToHit)    (+ (to-num BonusToHit) DEFAULT-TO-HIT))
+(define (basic-ToDefend BonusToDefend) (+ (to-num BonusToDefend) DEFAULT-TO-DEFEND))
+(define (xp->dice TotalXP)      (inexact->exact (ceiling (/ (to-num TotalXP) 1000))))
+(define (maybe-bonus-dice base-dice chance)
+  (if (> chance 1)
+      (inexact->exact (ceiling (* base-dice chance)))
+      base-dice))
+(define (calc-offense-dice fighter)
+  (maybe-bonus-dice (combatant.BaseDice fighter)
+                    (combatant.ToHit fighter)))
+(define (calc-defense-dice fighter)
+  (maybe-bonus-dice (combatant.BaseDice fighter)
+                    (combatant.ToDefend fighter)))
+
 
 (struct++ combatant
           ([Name                        name?        string-trim]
@@ -126,29 +143,25 @@
            [(TotalXP #f)                exact-positive-integer?]
            [(ToHit   #f)                real?]
            [(ToDefend   #f)             real?]
-           [(OffenseDice #f)            exact-positive-integer?]
-           [(DefenseDice #f)            exact-positive-integer?]
+           [(BaseDice   #f)             integer?]
            [(HP #f)                     integer?])
-          (
+          (#:omit-reflection
            #:rule ("calc TotalXP"
-                   #:transform TotalXP  (TotalXP XP BonusXP) [(or TotalXP (+ (to-num XP) (to-num BonusXP)))])
+                   #:transform TotalXP  (TotalXP XP BonusXP)
+                   [(or TotalXP (+ (to-num XP) (to-num BonusXP)))])
+           #:rule ("calc BaseDice"
+                   #:transform BaseDice (TotalXP)
+                   [(xp->dice (to-num TotalXP))])
            #:rule ("calc HP"
-                   #:transform HP       (HP BonusHP) [(or HP (+ DEFAULT-HP (to-num BonusHP)))])
+                   #:transform HP       (HP BonusHP)
+                   [(or HP (+ DEFAULT-HP (to-num BonusHP)))])
            #:rule ("calc ToHit"
                    #:transform ToHit    (ToHit BonusToHit)
-                   [(or ToHit
-                         (+ (to-num BonusToHit)
-                            DEFAULT-TO-HIT))])
+                   [(or ToHit (basic-ToHit BonusToHit))])
            #:rule ("calc ToDefend"
                    #:transform ToDefend (ToDefend BonusToDefend)
-                   [(or ToDefend
-                        (+ (to-num BonusToDefend) DEFAULT-TO-DEFEND))])
-           #:rule ("calc OffenseDice"
-                   #:transform OffenseDice (OffenseDice TotalXP)
-                   [(or OffenseDice (inexact->exact (ceiling (/ TotalXP 1000))))])
-           #:rule ("calc DefenseDice"
-                   #:transform DefenseDice (DefenseDice TotalXP)
-                   [(or DefenseDice (inexact->exact (ceiling (/ TotalXP 1000))))])
+                   [(or ToDefend (basic-ToDefend BonusToDefend))])
+
            #:convert-from (csv-record
                            (list?
                             (list Name XP BonusXP BonusHP BonusToHit BonusToDefend AOE LinkedTo BodyguardFor _ ...)
@@ -190,32 +203,32 @@
                                             ","))
                              (log-fight-debug "in combatant stats dump, data is: ~v" data)
                              data)))
-           #:convert-for (refresh
-                          (#:include '(Name XP BonusXP BonusHP BonusToHit BonusToDefend
-                                            AOE BodyguardFor LinkedTo Buffs HP)
-                           #:post (λ (h) (hash->struct/kw combatant++ h))))
-
            #:convert-for (report-string
                           (#:post (λ (h)
                                     (log-fight-debug "in convert-for report-string, hash is: ~v" h)
+                                    (define clean-num (compose1 inexact->exact truncate))
+                                    (define (clipped/cleaned n MIN MAX)
+                                      (clean-num (* 100 (clip-to-range n MIN MAX))))
                                     (match-define (hash-table ('Name         name)
                                                               ('HP           hp)
                                                               ('TotalXP      total-xp)
                                                               ('ToHit        to-hit)
                                                               ('ToDefend     to-defend)
-                                                              ('OffenseDice  offense-dice)
-                                                              ('DefenseDice  defense-dice)
                                                               ('AOE          aoe)
+                                                              ('BaseDice     base-dice)
                                                               ('BodyguardFor bodyguard-for)
                                                               ('LinkedTo     linked-to)
                                                               )
                                       h)
-                                    (format "~a:\tHP(~a), OffenseDice(~a), DefenseDice(~a), ToHit(~a%), ToDefend(~a%), AOE(~a), Total XP(~a), Bodyguarding: ~a, Linked to: ~a"
+                                    (format "~a:\tHP(~a), TotalXP(~a), ToHit(~a%), ToDefend(~a%), BaseDice(~a), OffenseDice(~a), DefenseDice(~a), AOE(~a), Bodyguarding: ~a, Linked to: ~a"
                                             name hp
-                                            offense-dice defense-dice
-                                            (real->decimal-string (* 100 to-hit)    1)
-                                            (real->decimal-string (* 100 to-defend) 1)
-                                            aoe total-xp
+                                            total-xp
+                                            (clipped/cleaned to-hit MIN-TO-HIT MAX-TO-HIT)
+                                            (clipped/cleaned to-defend MIN-TO-HIT MAX-TO-HIT)
+                                            base-dice
+                                            (maybe-bonus-dice base-dice to-hit)
+                                            (maybe-bonus-dice base-dice to-defend)
+                                            aoe
                                             (if (empty-string? bodyguard-for)
                                                 "<no one>"
                                                 bodyguard-for)
@@ -223,7 +236,7 @@
                                                 "<no one>"
                                                 linked-to)))))
            )
-          #:transparent)
+          #:prefab)
 
 (define/contract (is-alive? fighter)
   (-> combatant? (or/c combatant? #f))
@@ -239,12 +252,13 @@
 (struct++ team
           ([fighters              (listof living-combatant/c)]
            [csv-headers           (non-empty-listof string?)]
-           [apply-buffs?          boolean?]
+           [recalc-stats?          boolean?]
            [(fighters-by-name #f) (hash/c name? combatant?)]
            )
           (#:rule ("remove invalid LinkedTo and Bodyguard entries"
                    #:transform fighters (fighters)
-                   [(define all-fighters-by-name (hash-aggregate combatant.Name fighters))
+                   [(log-fight-debug "about to remove invalid LinkedTo and Bodyguard entries")
+                    (define all-fighters-by-name (hash-aggregate combatant.Name fighters))
                     (for/list ([fighter fighters])
                       (let* ([bodyguard-for (combatant.BodyguardFor fighter)]
                              [linked-to     (combatant.LinkedTo     fighter)]
@@ -255,100 +269,13 @@
                                                 fighter
                                                 (set-combatant-LinkedTo fighter ""))])
                         fighter))])
-           #:rule ("apply ally buffs"
-                   #:transform fighters (fighters apply-buffs?)
-                   [;(log-fight-debug "entering apply-all-buffs, fighters is: ~v" fighters)
-                    (cond [(or (not apply-buffs?) (null? fighters))
+           #:rule ("recalculate stats based on raw numbers and ally buffs"
+                   #:transform fighters (fighters recalc-stats?)
+                   [(cond [(false? recalc-stats?) (log-fight-debug "recalc-stats? is #f")
                            fighters]
-                          [else
-                           (match (flatten (map combatant.Buffs fighters))
-                             ['() fighters]
-                             [all-buffs
-                              ;; okay, we have some buffs.
-
-                              ;; Make a lookup of fighter-name -> all relevant buffs
-                              (define name->buffs
-                                (apply (curry hash-union
-                                              #:combine (compose1 (curryr remove-duplicates
-                                                                          eq?)
-                                                                  append))
-                                       (for/fold ([result '()])
-                                                 ([b all-buffs])
-                                         (cons (for/hash ([who (buff.BuffWho b)])
-                                                 (values who (list b)))
-                                               result))))
-                              (log-fight-debug "name->buffs: ~v"
-                                               name->buffs)
-
-                              (define updated-fighters
-                                (for/list ([fighter fighters])
-                                  (match-define (struct* combatant ([Name     fighter-name]
-                                                                    [ToHit    current-2hit]
-                                                                    [ToDefend current-2def]))
-                                    fighter)
-                                  (define relevant-buffs (hash-ref name->buffs
-                                                                   fighter-name
-                                                                   '()))
-                                  (log-fight-debug "fighter: ~v has buffs: ~v"
-                                                   fighter-name
-                                                   relevant-buffs)
-                                  (match relevant-buffs
-                                    ['()
-                                     (log-fight-debug "matched no buffs")
-                                     fighter]
-                                    [(list (struct* buff ([BuffOffense off]
-                                                          [BuffDefense def])) ...)
-                                     (log-fight-debug "matched buffs.  off: ~v , def: ~v"
-                                                      off def)
-                                     (log-fight-debug "before boost, ~a hash off/def: ~a/~a"
-                                                      fighter-name
-                                                      (combatant.ToHit fighter)
-                                                      (combatant.ToDefend fighter))
-                                     (define offense (cons current-2hit off))
-                                     (define defense (cons current-2def def))
-                                     (let* ([fighter (set-combatant-ToHit fighter
-                                                                          (apply + offense))]
-                                            [fighter (set-combatant-ToDefend fighter
-                                                                             (apply + defense))])
-                                       (log-fight-debug "after boost, ~a hash off/def: ~a/~a"
-                                                        fighter-name
-                                                        (combatant.ToHit fighter)
-                                                        (combatant.ToDefend fighter))
-                                       fighter)])))
-                              (log-fight-debug  "updated fighters: ~a"
-                                                (with-output-to-string
-                                                  (thunk (pretty-display
-                                                          updated-fighters))))
-                              updated-fighters])])])
-           #:rule ("clip ToHit/ToDefend and award bonus dice as appropriate"
-                   #:transform fighters (fighters apply-buffs?)
-                   [;(log-fight-debug "entering bonus-dice, fighters is: ~v" fighters)
-                    (cond [(or (not apply-buffs?) (null? fighters))
+                          [(null? fighters)(log-fight-debug "recalc-stats? is #f")
                            fighters]
-                          [else
-                           (for/list ([fighter fighters])
-                             (match-define (struct* combatant ([ToHit       ToHit]
-                                                               [ToDefend    ToDefend]
-                                                               [OffenseDice OffenseDice]
-                                                               [DefenseDice DefenseDice]))
-                               fighter)
-                             (let* ([fighter (if (> ToHit 1)
-                                                 (set-combatant-OffenseDice fighter
-                                                                            (inexact->exact
-                                                                             (ceiling (* OffenseDice ToHit))))
-                                                 fighter)]
-                                    [fighter (if (> ToDefend 1)
-                                                 (set-combatant-DefenseDice fighter
-                                                                            (inexact->exact
-                                                                             (ceiling (* DefenseDice ToDefend))))
-                                                 fighter)]
-                                    [fighter (set-combatant-ToHit fighter
-                                                                  (max MIN-TO-HIT
-                                                                       (min ToHit MAX-TO-HIT)))]
-                                    [fighter (set-combatant-ToDefend fighter
-                                                                     (max MIN-TO-DEFEND
-                                                                          (min ToDefend MAX-TO-DEFEND)))])
-                               fighter))])])
+                          [else (recalc-team-stats fighters)])])
            #:rule ("set bodyguarding-me and linked-to-me"
                    #:transform fighters (fighters)
                    [(log-fight-debug "entering set bodyguards, fighters is: ~v" fighters)
@@ -408,8 +335,75 @@
                                          (for/list ([fighter (sort-str #:key combatant.Name (hash-ref h 'fighters))])
                                            (combatant/convert->report-string fighter))
                                          "\n")))))
+           #:omit-reflection
            )
-          #:transparent)
+          #:prefab)
+
+;;----------------------------------------------------------------------
+
+(define/contract (recalc-team-stats fighters)
+  (-> (listof living-combatant/c) (listof living-combatant/c))
+
+  (log-fight-debug "entering recalc stats, fighters is: ~v" fighters)
+
+  (match (flatten (map combatant.Buffs fighters))
+    ['()
+     (log-fight-debug "no buffs found")
+     fighters]
+    [all-buffs
+     ;; okay, we have some buffs.
+     ;; Make a lookup of fighter-name -> all relevant buffs
+     (define name->buffs
+       (apply (curry hash-union
+                     #:combine (compose1 (curryr remove-duplicates eq?) append))
+              (for/fold ([result '()])
+                        ([b all-buffs])
+                (cons (for/hash ([who (buff.BuffWho b)])
+                        (values who (list b)))
+                      result))))
+     (log-fight-debug "name->buffs: ~v" name->buffs)
+
+     (define updated-fighters
+       (for/list ([fighter fighters])
+         (match-define
+           (struct* combatant ([Name          fighter-name]
+                               [TotalXP       TotalXP]
+                               [BonusToHit    (app to-num BonusToHit)]
+                               [BonusToDefend (app to-num BonusToDefend)]))
+           fighter)
+         (define relevant-buffs (hash-ref name->buffs fighter-name '()))
+         (log-fight-debug "fighter: ~v has buffs: ~v" fighter-name relevant-buffs)
+         (match relevant-buffs
+           ['()
+            (log-fight-debug "no buffs for ~a" fighter-name)
+            fighter]
+           [(list (struct* buff ([BuffOffense off] [BuffDefense def])) ...)
+            (log-fight-debug "matched buffs for ~a.  off: ~v , def: ~v"
+                             fighter-name off def)
+
+            ; recalculate the ToHit and ToDefend from scratch
+            (define offense (cons (basic-ToHit BonusToHit) off))
+            (define defense (cons (basic-ToDefend BonusToDefend)
+                                  def))
+
+            (let* ([fighter (set-combatant-ToHit fighter
+                                                 (clip-to-range (apply + offense)
+                                                                MIN-TO-HIT
+                                                                MAX-TO-HIT))]
+                   [fighter (set-combatant-ToDefend fighter
+                                                    (clip-to-range (apply + defense)
+                                                                   MIN-TO-DEFEND
+                                                                   MAX-TO-DEFEND))])
+              (log-fight-debug "after boost, ~a hash off/def: ~a/~a"
+                               fighter-name
+                               (combatant.ToHit fighter)
+                               (combatant.ToDefend fighter))
+              fighter)])))
+     (log-fight-debug  "updated fighters: ~a"
+                       (with-output-to-string
+                         (thunk (pretty-display
+                                 updated-fighters))))
+     updated-fighters]))
 
 ;;----------------------------------------------------------------------
 
@@ -432,6 +426,69 @@
 
 ;;----------------------------------------------------------------------
 
+(define (parse-csv-data rows)
+  (define headers (car rows))
+  (define-values (buff-field-names fields) (partition-csv-headers headers))
+  (define num-fields (length fields))
+  (values headers buff-field-names fields num-fields))
+
+;;----------------------------------------------------------------------
+
+(define/contract (make-fighter row headers buff-field-names fields num-fields)
+  (-> (listof string?) (listof string?) (listof string?) (listof string?) natural-number/c
+      combatant?)
+  
+  (define base (hash->struct/kw combatant++
+                                (for/hash ([h fields]
+                                           [v (take row num-fields)])
+                                  (values (string->symbol h)
+                                          (string-trim v)))))
+
+  (cond [(null? buff-field-names) base]
+        [else
+
+         (define buff-header-lists (step-by-n list buff-field-names 4))
+         ; e.g. '((BuffName BuffWho BuffOffense BuffDefense) (BuffName BuffWho BuffOffense BuffDefense))
+
+         (define buff-data-lists   (step-by-n list (drop row num-fields) 4))
+         ; e.g. '(("JutsuA" "Alice,Bob" 0.1 0.2) ("JutsuB" "Alice,Tom" 0.3 0.4))
+
+         (log-fight-debug "buff data lists: ~v "buff-data-lists)
+
+         ; This ended up very convoluted because I was beating my
+         ; head on a weird problem.  Turns out that csv-reading
+         ; assumes (quite reasonably) that spaces after a comma are
+         ; part of the field.  That means this is a problem:
+         ;
+         ; ...,BuffName,BuffWho,...
+         ; ...,JutsuA,   "Alice,Bob",...           <=== 2 fields, the second is: "Alice,Bob"
+         ;
+         ; The data gets interpreted like this:
+         ;
+         ; '(... "JutsuA" "   \"Alice" "Bob" ...)  <=== 3 fields, the second is "   \"Alice"
+         ;
+         ; After looking at it I've decided that I'm not going to
+         ; deal with it.  Make sure your CSV files are valid.
+         (define buffs
+           (remove-nulls
+            (for/list ([header-list buff-header-lists]
+                       [data-list   buff-data-lists])
+              (define result
+                (match data-list
+                  [(list "" "" "" "") '()]
+                  [(list name who off def)
+                   (hash 'BuffName    name
+                         'BuffWho     (string-split who ",")
+                         'BuffOffense (to-num off)
+                         'BuffDefense (to-num off))]))
+              result)))
+         ;(log-fight-debug "buffs: ~v" buffs)
+         (set-combatant-Buffs base
+                              (map (curry hash->struct/kw buff++)
+                                   buffs))])
+  )
+
+;;----------------------------------------------------------------------
 
 (define/contract (make-combatants rows)
   (-> (non-empty-listof (non-empty-listof string?))
@@ -444,65 +501,24 @@
   ;
   ; The combatant structs are them placed into a `team` struct which will take care of all
   ; initializations via the struct++ rules for teams.
-  (define headers (car rows))
-  (define-values (buff-field-names fields) (partition-csv-headers headers))
-  (define num-fields (length fields))
-  (team++ #:csv-headers headers
-          #:apply-buffs? #t
-          #:fighters (for/list ([row (cdr rows)])
-                       (log-fight-debug "fields are: ~v" fields)
-                       (log-fight-debug "row is: ~v" row)
-                       (log-fight-debug "take ~a fields are: ~v" num-fields (take row num-fields))
 
-                       (define base (hash->struct/kw combatant++
-                                                     (for/hash ([h fields]
-                                                                [v (take row num-fields)])
-                                                       (values (string->symbol h)
-                                                               (string-trim v)))))
-                       (define c
-                         (cond [(null? buff-field-names) base]
-                               [else
-                                (define buff-header-lists (step-by-n list buff-field-names 4))
-                                ; e.g. '((BuffName BuffWho BuffOffense BuffDefense) (BuffName BuffWho BuffOffense BuffDefense))
+  (define-values (headers buff-field-names fields num-fields)
+    (parse-csv-data rows))
 
-                                (define buff-data-lists   (step-by-n list (drop row num-fields) 4))
-                                ; e.g. '(("JutsuA" "Alice,Bob" 0.1 0.2) ("JutsuB" "Alice,Tom" 0.3 0.4))
+  (log-fight-debug "fields are: ~v" fields)
 
-                                (log-fight-debug "buff data lists: ~v "buff-data-lists)
+  (define fighters
+    (for/list ([row (cdr rows)])
+      (log-fight-debug "row is: ~v" row)
+      (log-fight-debug "take ~a fields are: ~v" num-fields (take row num-fields))
 
-                                ; This ended up very convoluted because I was beating my
-                                ; head on a weird problem.  Turns out that csv-reading
-                                ; assumes (quite reasonably) that spaces after a comma are
-                                ; part of the field.  That means this is a problem:
-                                ;
-                                ; ...,BuffName,BuffWho,...
-                                ; ...,JutsuA,   "Alice,Bob",...           <=== 2 fields, the second is: "Alice,Bob"
-                                ;
-                                ; The data gets interpreted like this:
-                                ;
-                                ; '(... "JutsuA" "   \"Alice" "Bob" ...)  <=== 3 fields, the second is "   \"Alice"
-                                ;
-                                ; After looking at it I've decided that I'm not going to
-                                ; deal with it.  Make sure your CSV files are valid.
-                                (define buffs
-                                  (remove-nulls
-                                   (for/list ([header-list buff-header-lists]
-                                              [data-list   buff-data-lists])
-                                     (define result
-                                       (match data-list
-                                         [(list "" "" "" "") '()]
-                                         [(list name who off def)
-                                          (hash 'BuffName    name
-                                                'BuffWho     (string-split who ",")
-                                                'BuffOffense (to-num off)
-                                                'BuffDefense (to-num off))]))
-                                     result)))
-                                ;(log-fight-debug "buffs: ~v" buffs)
-                                (set-combatant-Buffs base
-                                                     (map (curry hash->struct/kw buff++)
-                                                          buffs))]))
-                       (log-fight-debug "combatant is: ~v" c)
-                       c)))
+      (define fighter (make-fighter row headers buff-field-names fields num-fields))
+      (log-fight-debug "in make-combatant, fighter is: ~v" fighter)
+      fighter))
+
+  (team++ #:csv-headers   headers
+          #:recalc-stats? #t
+          #:fighters      fighters))
 
 ;;----------------------------------------------------------------------
 
@@ -567,25 +583,21 @@
 
 (define/contract (generate-hits fighter)
   (-> combatant? natural-number/c)
-
-  (roll (combatant.OffenseDice fighter)  (combatant.ToHit fighter)))
+  (roll (calc-offense-dice fighter)  (combatant.ToHit fighter)))
 
 ;;----------------------------------------------------------------------
 
 (define/contract (block-hits fighter)
   (-> combatant? natural-number/c)
-
-  (roll (combatant.DefenseDice fighter) (combatant.ToDefend fighter)))
+  (roll (calc-defense-dice fighter) (combatant.ToDefend fighter)))
 
 ;;----------------------------------------------------------------------
 
 (define/contract (make-more-tired fighter)
   (-> combatant? combatant?)
   (set-combatant-ToDefend fighter
-                          (clip-to-range (- (combatant.ToDefend fighter)
-                                            EXHAUSTION-PENALTY)
-                                         MIN-TO-DEFEND
-                                         MAX-TO-DEFEND)))
+                          (- (combatant.ToDefend fighter)
+                             EXHAUSTION-PENALTY)))
 
 ;;----------------------------------------------------------------------
 
@@ -722,23 +734,34 @@
       ;; fight will still eventually end even if everyone starts off with super high
       ;; ToDefend scores that render them untouchable.
       (define (rebuild-fighters survivors)
-        (for/list ([fighter (hash-values survivors)])
-          (define start-val (combatant.ToDefend fighter))
-          (make-more-tired (set-combatant-ToDefend (combatant/convert->refresh fighter)
-                                                   start-val))))
-      
+        (define fighters
+          (for/list ([fighter (hash-values survivors)])
+            (define h (struct->hash combatant fighter))
+            (log-fight-debug "rebuilding fighter. h: ~v" h)
+            (define remapped
+              (hash-remap h
+                          #:include '(Name XP BonusXP BonusHP BonusToHit BonusToDefend AOE BodyguardFor LinkedTo Buffs)
+                          #:overwrite (hash 'BonusToDefend (λ (v) (- v EXHAUSTION-PENALTY)))))
+            (log-fight-debug "rebuilding fighter. remapped: ~v" remapped)
+            (define result (hash->struct/kw combatant++ remapped))
+            (log-fight-debug "rebuilding fighter. result: ~v" result)
+            result))
+        (define results (recalc-team-stats fighters))
+        (log-fight-debug "rebuilding fighters. final result: ~v" results)
+        results)
+
       (match is-second-half?
         [#f (log-fight-debug "going into second half of fight-one-round")
             (displayln "")
             (loop     defending-team ; villains become attackers
                       attacking-team ; heroes   become defenders
                       (team++ #:csv-headers  (team.csv-headers defending-team)
-                              #:apply-buffs? #t
-                              #:fighters     (rebuild-fighters surviving-defenders-hash))
+                              #:recalc-stats? #f
+                              #:fighters   (rebuild-fighters surviving-defenders-hash))
                       #t)]
         [#t (log-fight-debug "leaving let loop in fight-one-round")
             (values (team++ #:csv-headers  (team.csv-headers defending-team)
-                            #:apply-buffs? #t
+                            #:recalc-stats? #f
                             #:fighters     (rebuild-fighters surviving-defenders-hash))
                     first-half-results)])))
 
