@@ -106,7 +106,9 @@
                                                               ('BuffWho     who)
                                                               ('BuffOffense off)
                                                               ('BuffDefense def))
-                                                  (format "~a,\"~a\",~a,~a" name (string-join who ",") off def)])))))
+                                                  (format "~a,\"~a\",~a,~a"
+                                                          name
+                                                          (string-join who ",") off def)])))))
           #:prefab)
 
 (define (basic-ToHit    BonusToHit)    (+ (to-num BonusToHit) DEFAULT-TO-HIT))
@@ -202,8 +204,8 @@
                                                              BonusToHit
                                                              BonusToDefend
                                                              AOE
-                                                             LinkedTo
-                                                             BodyguardFor))
+                                                             BodyguardFor
+                                                             LinkedTo))
                                                     (map buff/convert->stats-dump Buffs))
                                             ","))
                              (log-fight-debug "in combatant stats dump, data is: ~v" data)
@@ -834,15 +836,14 @@
     heroes-final-path
     (thunk
      (displayln (string-join (team.csv-headers heroes) ","))
-     (for ([x (team.fighters heroes)])
-       (displayln (combatant/convert->stats-dump x)))))
+     (displayln (team/convert->stats-dump heroes))))
 
   (with-output-to-file
     #:exists 'replace
     villains-final-path
     (thunk
      (displayln (string-join (team.csv-headers villains) ","))
-     (for ([x (team.fighters villains)]) (displayln (combatant/convert->stats-dump x))))))
+     (displayln (team/convert->stats-dump villains)))))
 
 ;;----------------------------------------------------------------------
 
